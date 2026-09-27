@@ -112,10 +112,53 @@ export const POLICE = {
   // one, and cruisers would retire out of sight the moment the player was
   // running quickly. Roughly 0.91 of halfSize, as it was at 208.
   giveUpDistance: WORLD.halfSize * 0.91,
-  ramDistance: 96,
+  // The range at which a lined-up cruiser shifts from following to hitting. It
+  // was 96, which from behind a player at the BMW's 111 is over a second of
+  // contact-free travel: the cruiser would sit back and never actually make the
+  // hit the ram is for. It only has to be a little longer than a car, so the
+  // shove lands while the two are still nose to tail.
+  ramDistance: 26,
+  // Cruisers top out above the quickest car in the garage. At 58 they were
+  // barely half the BMW's speed, so a chase the player drove quickly simply
+  // ended: the cruiser fell outside the release distance and retired, and the
+  // player never saw the police at all. They need the legs to keep up, and a
+  // little more acceleration so they can close from a spawn.
+  topSpeed: 124,
+  accel: 1.28,
+  // Steering gain on the cruiser's heading error, in steer units per radian.
+  // Full lock at about 0.63 rad (36 deg) of error, which is where the yaw-rate
+  // ceiling puts a cruiser following a player at speed, so the controller sits
+  // just off saturation and stays linear near the line. A higher gain does not
+  // corner any harder, because the yaw rate is already at its ceiling there; it
+  // only makes the steering twitch around the target.
+  headingGain: 1.6,
+  // Obstacle avoidance. The fan is sampled at these angles either side of the
+  // nose, out to one seek distance; the smallest angle that is clear wins, with
+  // a tie going to whichever flank the open side is on. The gain and the cruise
+  // speed are what keep the correction from reading as a twitch: the cruiser
+  // slows towards `collisionRestSpeed` as the near face comes up, which is the
+  // speed the push-out can walk off without grinding.
+  avoidSeekDistance: 15,
+  avoidProbeAngles: [-1.5, -1.1, -0.65, -0.3, 0, 0.3, 0.65, 1.1, 1.5],
+  avoidBlend: 0.5,
+  avoidSteerGain: 1.4,
+  // Below this speed the controller is not running a heading worth correcting:
+  // the cruiser is either stationary or in its reverse-out, and the fan would
+  // fight the wheel that the unstick is using.
+  avoidMinSpeed: 6,
+  // Room the fan leaves around a collider face when it decides a probe is clear.
+  avoidMargin: 1.5,
   spawnTimerSeconds: 1.6,
   // Heat per second is damped by this; it sets how long a chase takes to build.
   heatDecayPerSecond: 1.1,
+  // Cap on cruisers in the world at once, and the multiplier applied to the
+  // wanted level when deciding how many should be out. The wanted level alone
+  // is too coarse a dial: at five stars this field puts a lot of cars on the
+  // road, which is the point.
+  maxCruisers: 14,
+  cruisersPerWantedLevel: 3,
+  // The floor a chase starts with, so even one star sends someone.
+  minCruisersPerChase: 2,
 };
 
 export const RAMP_LAUNCH = 15.5;

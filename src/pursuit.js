@@ -13,6 +13,8 @@ export class Pursuit {
     this.escapeTimer = 0;
     this.spawnTimer = 0;
     this.sirenPhase = 0;
+    // Set by update() before spawn() can run, so the first drop uses the floor.
+    this.playerSpeed = 0;
   }
 
   get activeCruisers() {
@@ -21,6 +23,9 @@ export class Pursuit {
 
   update(dt, player) {
     const playerSpeed = player.speed;
+    // Remembered for spawn(), which runs after this and needs to know how fast
+    // the player is going to pick a drop distance.
+    this.playerSpeed = playerSpeed;
     const maxSpeed = player.spec.topSpeed;
 
     // Heat rises from speed, damage and proximity, and decays when the player
@@ -41,9 +46,15 @@ export class Pursuit {
     );
     this.wanted = targetWanted;
 
-    // A wanted level summons cruisers, up to the cap.
+    // A wanted level summons cruisers. The number out is the level scaled up, so
+    // a serious chase puts a fleet on the road rather than one car trailing the
+    // player at a distance. The wanted level alone is too coarse a dial.
+    const wantedCruisers = Math.min(
+      POLICE.maxCruisers,
+      Math.max(POLICE.minCruisersPerChase, targetWanted * POLICE.cruisersPerWantedLevel),
+    );
     this.spawnTimer -= dt;
-    if (targetWanted > this.activeCruisers.length && this.spawnTimer <= 0 && this.cruisers.length < 10) {
+    if (targetWanted > 0 && this.activeCruisers.length < wantedCruisers && this.spawnTimer <= 0) {
       this.spawn(player);
       this.spawnTimer = POLICE.spawnTimerSeconds;
     }
@@ -90,12 +101,22 @@ export class Pursuit {
   spawn(player) {
     const free = this.cruisers.find((c) => !c.active);
     const heading = player.heading;
-    // Drop in behind the player, or ahead if nothing is behind.
+    // Drop in behind the player, or ahead if nothing is behind. The gap closes
+    // as the player speeds up, because a cruiser dropped a fixed distance back
+    // while the player is doing 120 m/s is already out of sight and takes half a
+    // minute to reel in. It is a share of the distance the player covers in one
+    // spawn interval, floored so a parked player still gets police arriving from
+    // off-screen rather than materialising on top of them, and capped so they do
+    // not land beyond the give-up distance and retire on arrival.
+    const lead = Math.min(
+      POLICE.giveUpDistance * 0.35,
+      Math.max(34, this.playerSpeed * POLICE.spawnTimerSeconds * 0.8),
+    );
     const behind = player.position
       .clone()
-      .addScaledVector(player.forward, -58)
+      .addScaledVector(player.forward, -lead)
       .addScaledVector(player.right, (Math.random() - 0.5) * 26);
-    const ahead = player.position.clone().addScaledVector(player.forward, 62);
+    const ahead = player.position.clone().addScaledVector(player.forward, lead + 18);
 
     // The drop point may not be off the field, and it may not be nearer to the
     // player than a spawn is meant to be. The bounds here were a fixed 180 from

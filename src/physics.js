@@ -14,6 +14,43 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
   let slowestHit = null;
 
   for (const c of colliders) {
+    // A round collider is resolved as circle against circle. Buildings and the
+    // parked cars are both solids a car meets broadside, and the car itself is
+    // already a circle here, so matching the shape is what makes the contact
+    // depth, the resting distance and the shove all agree. Resolving a circle
+    // against a box measures the depth against the box face while the push-out
+    // adds the radius on top, so the car came to rest a whole car-width short
+    // of the bodywork and the shove was scaled by the wrong overlap.
+    if (c.round) {
+      const dx = vehicle.position.x - c.round.x;
+      const dz = vehicle.position.z - c.round.z;
+      const distance = Math.hypot(dx, dz);
+      const contact = radius + c.round.r;
+      if (distance >= contact) continue;
+      // Straight away from the middle of the solid. At dead centre there is no
+      // direction to take, so pick the way the car is pointing.
+      const nx = distance > 0.0001 ? dx / distance : Math.sin(vehicle.heading);
+      const nz = distance > 0.0001 ? dz / distance : Math.cos(vehicle.heading);
+      const penetration = contact - distance;
+      vehicle.position.x += nx * penetration;
+      vehicle.position.z += nz * penetration;
+      const normal = new THREE.Vector3(nx, 0, nz);
+      const vn = vehicle.velocity.dot(normal);
+      const impactSpeed = Math.abs(vn);
+      if (vn < 0) vehicle.velocity.addScaledVector(normal, -vn);
+      vehicle.velocity.multiplyScalar(0.86 - PHYSICS.bounceRestitution);
+      vehicle.airborne = false;
+      vehicle.velocity.y = Math.min(vehicle.velocity.y, 0);
+      vehicle.addBounce(normal, impactSpeed);
+      if (impactSpeed > 4) {
+        shuntMovable(c, normal, penetration, vehicle);
+      }
+      if (!slowestHit || impactSpeed > slowestHit.speed) {
+        slowestHit = { speed: impactSpeed, collider: c };
+      }
+      continue;
+    }
+
     const nearestX = THREE.MathUtils.clamp(vehicle.position.x, c.minX, c.maxX);
     const nearestZ = THREE.MathUtils.clamp(vehicle.position.z, c.minZ, c.maxZ);
     const dx = vehicle.position.x - nearestX;
@@ -65,38 +102,7 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
 
     if (impactSpeed > 4) {
       if (c.movable) {
-        c.hp = (c.hp ?? 1) - impactSpeed * 0.14;
-        if (c.hp <= 0) c.destroyed = true;
-        // A solid car that is shoved has to travel along the line of the hit.
-        // Setting the mesh to wherever the collider already is throws the
-        // push-out away and leaves the car exactly as it was, so the bodywork
-        // never moves and the car reads as welded to the road. Shifting the
-        // collider and the mesh by the overlap, in the direction the player was
-        // travelling, is what makes a parked car look shunted.
-        if (c.mesh && c.centre) {
-          const alongX = nx !== 0;
-          // A head-on hit has no lateral component, so the sign above is zero
-          // and the car would be shoved straight down the axis the player is
-          // pushing into. Fall back to the way the player is travelling, which
-          // is the direction the shunt should follow.
-          const dir = alongX
-            ? (nx !== 0 ? -nx : Math.sign(vehicle.velocity.x))
-            : (nz !== 0 ? -nz : Math.sign(vehicle.velocity.z));
-          // A shunt is displacement, not a spin: cap it so a glancing blow
-          // nudges the car instead of snapping it round a right angle.
-          const SHUNT_MAX = 0.8;
-          const shift = Math.min((alongX ? overlapX : overlapZ) * 0.9, SHUNT_MAX);
-          const dirX = alongX ? dir : 0;
-          const dirZ = alongX ? 0 : dir;
-          c.minX += dirX * shift; c.maxX += dirX * shift;
-          c.minZ += dirZ * shift; c.maxZ += dirZ * shift;
-          c.centre.x += dirX * shift;
-          c.centre.z += dirZ * shift;
-          c.mesh.position.set(c.centre.x, c.mesh.position.y, c.centre.z);
-          // Keep the nose facing the way it was shoved rather than snapping to
-          // an axis, so the car visibly swings round.
-          c.mesh.rotation.y = Math.atan2(dirX, dirZ) * 0.15 + c.mesh.rotation.y * 0.85;
-        }
+        shuntMovable(c, normal, overlapX < overlapZ ? overlapX : overlapZ, vehicle);
       }
       if (!slowestHit || impactSpeed > slowestHit.speed) {
         slowestHit = { speed: impactSpeed, collider: c };
@@ -119,6 +125,49 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
     onImpact?.(damage, slowestHit.speed);
     vehicle._wallHitCooldown = 45;
   }
+}
+
+// Displace a parked car along the line of the hit. Shared by both collider
+// shapes so a shunt behaves the same whichever one the parked car uses.
+//
+// The shove has to move the collider and the mesh together: setting the mesh to
+// wherever the collider already is changes nothing, which is what left these
+// cars reading as welded to the road.
+function shuntMovable(c, normal, penetration, vehicle) {
+  c.hp = (c.hp ?? 1) - vehicle.speed * 0.14;
+  if (c.hp <= 0) c.destroyed = true;
+  if (!c.mesh || !c.centre) return;
+
+  // Shove the car the way the player is driving through it, which is the
+  // normal negated: `normal` points from the struck car back towards the player,
+  // because it was built as the direction the player gets pushed out along. A
+  // stationary fallback has no direction of travel to follow, so it stays put.
+  let dirX = -normal.x;
+  let dirZ = -normal.z;
+  if (dirX === 0 && dirZ === 0) {
+    dirX = Math.sign(vehicle.velocity.x);
+    dirZ = Math.sign(vehicle.velocity.z);
+  }
+  // A shunt is displacement, not a spin, so it is capped: a glancing blow
+  // should nudge the car rather than snap it round a right angle.
+  const SHUNT_MAX = 0.8;
+  const shift = Math.min(penetration * 0.9, SHUNT_MAX);
+
+  c.centre.x += dirX * shift;
+  c.centre.z += dirZ * shift;
+  if (c.round) {
+    c.round.x = c.centre.x;
+    c.round.z = c.centre.z;
+  } else {
+    c.minX += dirX * shift;
+    c.maxX += dirX * shift;
+    c.minZ += dirZ * shift;
+    c.maxZ += dirZ * shift;
+  }
+  c.mesh.position.set(c.centre.x, c.mesh.position.y, c.centre.z);
+  // Swing the nose towards the shove rather than snapping it onto an axis, so
+  // the car visibly turns as it is knocked.
+  c.mesh.rotation.y = Math.atan2(dirX, dirZ) * 0.15 + c.mesh.rotation.y * 0.85;
 }
 
 // Car to car. The heavier vehicle wins the exchange; both take damage, the

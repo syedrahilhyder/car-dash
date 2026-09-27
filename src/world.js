@@ -596,20 +596,15 @@ function addParkedCars(props, colliders) {
       { ...carSpecFor(key), body: { ...carSpecFor(key).body } },
       { colorOverride: [0x9c3b3b, 0x3b6f9c, 0xd8d2c4, 0x40484f, 0xb0723c][i % 5] },
     );
-    // The parked car is dropped into the same space the physics car uses: the
-    // resolver insists a vehicle keep its broad-phase circle clear of a
-    // collider, and that circle is measured from the car's centre, so an
-    // axis-aligned box hugging the bodywork is one the resolver can never
-    // actually clear. It parks the car 1.8 m short of a 2.6 m face, leaving it
-    // inside the solid, and the next frame pushes it out again. That is the
-    // jitter felt against a parked car: the collider has to be the circle the
-    // resolver wants to keep clear, not the silhouette of the bodywork.
+    // A parked car is a round collider, matched to the circle the resolver
+    // already uses for every vehicle. An axis-aligned box hugging the bodywork
+    // does not work here: the resolver measures depth against the box face and
+    // then pushes the car out by its whole radius on top, so the parked car
+    // came to rest a car-width short of the bodywork and the shove was scaled
+    // by the wrong overlap. A circle makes the contact depth, the resting
+    // distance and the shove all describe the same surface.
     const spec = carSpecFor(key);
-    // The collider is a circle of this radius, but the resolver keeps the car's
-    // own circle clear of the box, not of the circle, so the box has to be built
-    // at the same radius rather than from the bodywork. See the note above.
     const radius = Math.hypot(spec.body.width / 2, spec.body.length / 2) * 0.72;
-    const boxRadius = radius + PARKED_CAR_CONTACT_GAP;
     const angle = (i / count) * Math.PI * 2 + 0.4;
     // They line the ring road, so they scale with it.
     const r = WORLD.ringRadius + 16;
@@ -620,14 +615,10 @@ function addParkedCars(props, colliders) {
     built.group.rotation.y = heading;
     props.add(built.group);
     colliders.push({
-      minX: x - boxRadius,
-      maxX: x + boxRadius,
-      minZ: z - boxRadius,
-      maxZ: z + boxRadius,
+      round: { x, z, r: radius + PARKED_CAR_CONTACT_GAP },
       height: 1.4,
       movable: true,
-      // Remembered so the push-out below can put the body back on the surface
-      // its collider describes.
+      // Kept so a shunt can move the bodywork with the collider.
       mesh: built.group,
       centre: { x, z },
     });
