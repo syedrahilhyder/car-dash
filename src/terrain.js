@@ -55,11 +55,14 @@ export function rampInfoAt(x, z) {
   return { height: scratch.height, onRamp: scratch.onRamp, ramp: scratch.ramp };
 }
 
-// The beach is a sandy strip along the +Z edge, with its own waterline.
+// The beach is a sandy strip along the +Z edge. `zStart` is where the sand
+// begins, `surfZ` is the white foam line the car can drive straight over, and
+// `waterStart` is where the open sea begins and the car is turned back.
 export const BEACH = {
   zStart: WORLD.halfSize * 0.42,
   zEnd: WORLD.halfSize,
-  waterStart: WORLD.halfSize * 0.78,
+  surfZ: WORLD.halfSize * 0.78,
+  waterStart: WORLD.halfSize * 0.88,
 };
 
 export function isBeach(x, z) {

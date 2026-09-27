@@ -2,6 +2,26 @@ import * as THREE from 'three';
 import { WORLD, POI, RAMP_LAUNCH } from './config.js';
 import { addRamp, BEACH, ramps } from './terrain.js';
 import { buildCarMesh } from './models.js';
+import { makePosterTexture } from './poster.js';
+
+// A wanted poster pasted flat on a building face, offset a hair off the wall
+// so it does not z-fight with the surface it sits on.
+function addWallPoster(props, texture, { x, y, z, rotation = 0, scale = 1 }) {
+  // A little over a person's height: big enough to read from a passing car,
+  // small enough to look pasted on rather than painted across the wall.
+  const w = 1.7 * scale;
+  const h = 2.1 * scale;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95 }),
+  );
+  mesh.position.set(x, y, z);
+  mesh.rotation.y = rotation;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  props.add(mesh);
+  return mesh;
+}
 
 const S = WORLD.halfSize;
 
@@ -157,20 +177,31 @@ function addBeach(scene, props) {
   sand.receiveShadow = true;
   props.add(sand);
 
-  // Waterline strip, with a small lip the car bumps over.
+  // Foam line the car can drive straight over; purely decorative, so it sits
+  // below the wheels rather than blocking them.
   const surf = new THREE.Mesh(
-    new THREE.PlaneGeometry(S * 2, 6, 1, 1),
+    new THREE.PlaneGeometry(S * 2, 5, 1, 1),
     new THREE.MeshStandardMaterial({ color: 0xf2f7fa, roughness: 0.6, transparent: true, opacity: 0.75 }),
   );
   surf.rotation.x = -Math.PI / 2;
-  surf.position.set(0, 0.07, BEACH.waterStart);
+  surf.position.set(0, 0.06, BEACH.surfZ);
   props.add(surf);
 
-  // Palm trees along the sand.
+  // Open sea beyond the foam, so the shoreline reads as water rather than an
+  // invisible wall.
+  const sea = new THREE.Mesh(
+    new THREE.PlaneGeometry(S * 2, BEACH.zEnd - BEACH.waterStart + 40, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x2f7fb5, roughness: 0.35, transparent: true, opacity: 0.9 }),
+  );
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.set(0, 0.03, (BEACH.waterStart + BEACH.zEnd + 40) / 2);
+  props.add(sea);
+
+  // Palm trees along the sand, kept south of the foam line.
   const palmSeed = mulberry(20240927);
   for (let i = 0; i < 22; i++) {
     const x = -S * 0.9 + palmSeed() * S * 1.8;
-    const z = BEACH.zStart + 6 + palmSeed() * (BEACH.waterStart - BEACH.zStart - 14);
+    const z = BEACH.zStart + 6 + palmSeed() * (BEACH.surfZ - BEACH.zStart - 14);
     props.add(makePalm(x, z, 0.85 + palmSeed() * 0.5));
   }
 
@@ -297,6 +328,10 @@ function addRamps(colliders, props) {
 function addTown(props, colliders) {
   const seed = mulberry(7781);
   const placedBoxes = [];
+  // One shared texture for every wall poster, so the artwork is rasterised
+  // once no matter how many buildings carry a copy.
+  const posterTexture = makePosterTexture();
+  let posterBudget = 14;
   const palette = [0xcfd6dd, 0xb8c4cf, 0xd8cbb4, 0xc2b6a4, 0x9fb0bd, 0xdcd6cc];
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x7a4b3a, roughness: 0.9 });
   const windowMat = new THREE.MeshStandardMaterial({
@@ -352,6 +387,31 @@ function addTown(props, colliders) {
       band2.position.set(x + w / 2 + 0.05, floor, z);
       band2.rotation.y = Math.PI / 2;
       props.add(band2);
+    }
+
+    // Wanted posters pasted on the street-facing walls. The window bands sit
+    // at y = 4, 8, 12, ... and are 1.4 tall, so the poster is centred in the
+    // clear gap above the first band rather than straddling one.
+    if (posterBudget > 0 && seed() < 0.75) {
+      posterBudget--;
+      const posterY = 6;
+      const lift = 0.12;
+      if (seed() < 0.5) {
+        // South face, facing +Z.
+        addWallPoster(props, posterTexture, {
+          x: x + (seed() - 0.5) * w * 0.4,
+          y: posterY,
+          z: z + d / 2 + lift,
+        });
+      } else {
+        // East face, facing +X.
+        addWallPoster(props, posterTexture, {
+          x: x + w / 2 + lift,
+          y: posterY,
+          z: z + (seed() - 0.5) * d * 0.4,
+          rotation: Math.PI / 2,
+        });
+      }
     }
   }
 

@@ -144,11 +144,10 @@ export function resolveWaterAndBounds(vehicle, onImpact) {
   }
 
   if (isWater(vehicle.position.x, vehicle.position.z)) {
-    // Treat the waterline as a solid wall at z = waterStart rather than
-    // teleporting the car back a fixed distance every frame. The teleport
-    // fought the throttle, so a car driven at the surf bounced across the
-    // threshold from frame to frame and juddered in place without crossing;
-    // resolving it like any other wall gives a clean stop instead.
+    // The sea is the barrier, not the foam line. Resolving it as a wall here
+    // rather than teleporting the car back a fixed distance every frame keeps
+    // the car from juddering across the threshold, while still letting it
+    // drive freely over the decorative surf line further down the beach.
     vehicle.position.z = BEACH.waterStart;
     if (vehicle.velocity.z > 0) vehicle.velocity.z = 0;
     vehicle.velocity.multiplyScalar(0.9);
