@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PoliceVehicle } from './policeVehicle.js';
-import { POLICE } from './config.js';
+import { POLICE, WORLD } from './config.js';
 
 // Owns cruiser spawning, the pursuit state machine and the heat level.
 export class Pursuit {
@@ -97,9 +97,26 @@ export class Pursuit {
       .addScaledVector(player.right, (Math.random() - 0.5) * 26);
     const ahead = player.position.clone().addScaledVector(player.forward, 62);
 
-    const candidate = Math.abs(behind.x) < 180 && Math.abs(behind.z) < 180 ? behind : ahead;
-    candidate.x = THREE.MathUtils.clamp(candidate.x, -180, 180);
-    candidate.z = THREE.MathUtils.clamp(candidate.z, -180, 180);
+    // The drop point may not be off the field, and it may not be nearer to the
+    // player than a spawn is meant to be. The bounds here were a fixed 180 from
+    // the days when the field was 208 across, so on this map they clamped every
+    // spawn to a box in the middle of town: a player out on the ring road would
+    // have its cruiser dragged up to 190 m away, past the give-up distance, and
+    // retired before it was ever seen. Both limits come from the field now.
+    const limit = WORLD.halfSize - 12;
+    // The drop point is inside the field when its distance from the player is
+    // no more than the gap between the player and the nearest edge, so measure
+    // that rather than clamping each axis and hoping the result is still near.
+    const roomToEdge = Math.min(
+      limit - Math.abs(player.position.x),
+      limit - Math.abs(player.position.z),
+    );
+    const behindIsNear = Math.abs(behind.x) < limit && Math.abs(behind.z) < limit
+      && player.position.distanceTo(behind) <= Math.max(40, roomToEdge);
+
+    const candidate = behindIsNear ? behind : ahead;
+    candidate.x = THREE.MathUtils.clamp(candidate.x, -limit, limit);
+    candidate.z = THREE.MathUtils.clamp(candidate.z, -limit, limit);
 
     if (free) {
       free.vehicle.reset(candidate.x, candidate.z, heading);

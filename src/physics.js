@@ -56,13 +56,26 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
       if (c.movable) {
         c.hp = (c.hp ?? 1) - impactSpeed * 0.14;
         if (c.hp <= 0) c.destroyed = true;
-        // A solid car that is shoved has to take its mesh with it, or the
-        // bodywork and the collider drift apart and the collider stops being
-        // anywhere near what the player can see.
+        // A solid car that is shoved has to travel along the line of the hit.
+        // Setting the mesh to wherever the collider already is throws the
+        // push-out away and leaves the car exactly as it was, so the bodywork
+        // never moves and the car reads as welded to the road. Shifting the
+        // collider and the mesh by the overlap, in the direction the player was
+        // travelling, is what makes a parked car look shunted.
         if (c.mesh && c.centre) {
-          c.centre.x = (c.minX + c.maxX) / 2;
-          c.centre.z = (c.minZ + c.maxZ) / 2;
+          const alongX = nx !== 0;
+          const dir = alongX ? -nx : -nz;
+          const shift = (alongX ? overlapX : overlapZ) * 0.9;
+          const dirX = alongX ? dir : 0;
+          const dirZ = alongX ? 0 : dir;
+          c.minX += dirX * shift; c.maxX += dirX * shift;
+          c.minZ += dirZ * shift; c.maxZ += dirZ * shift;
+          c.centre.x += dirX * shift;
+          c.centre.z += dirZ * shift;
           c.mesh.position.set(c.centre.x, c.mesh.position.y, c.centre.z);
+          // Keep the nose facing the way it was shoved rather than snapping to
+          // an axis, so the car visibly swings round.
+          c.mesh.rotation.y = Math.atan2(dirX, dirZ);
         }
       }
       if (!slowestHit || impactSpeed > slowestHit.speed) {

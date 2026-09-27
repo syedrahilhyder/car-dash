@@ -374,7 +374,7 @@ function addTown(props, colliders) {
   // Blocks scattered through town. Placement is rejection-sampled against the
   // road network so no building ever blocks the route the player drives.
   let placed = 0;
-  const wanted = Math.round(44 * areaScale());
+  const wanted = Math.round(TOWN.buildingsPerReference * areaScale());
   // Cap the auto-raise rather than scaling it, so the growth comes from the
   // density and there is still a spending limit per building.
   const maxHeight = Math.min(35, (9 + 26) * Math.sqrt(areaScale()));
@@ -574,11 +574,16 @@ function addPoiBuildings(props, colliders) {
   }
 }
 
-// A few parked cars so the field does not feel empty; they are solid.
+// Parked cars lining the ring road. They are solid, and a hard enough hit
+// shunts them.
 function addParkedCars(props, colliders) {
   const seed = mulberry(3131);
   const keys = ['bmw', 'porsche', 'rolls'];
-  const count = Math.round(9 * areaScale());
+  // Scalars with the ring road, not with the area: these line a loop, so their
+  // spacing is what a bigger ring changes. Scaling the count by area put nine
+  // times as many cars around the same loop and turned the street into a car
+  // park.
+  const count = Math.round(9 * Math.sqrt(areaScale()));
   for (let i = 0; i < count; i++) {
     const key = keys[i % keys.length];
     const built = buildCarMesh(

@@ -24,13 +24,20 @@ export const TOWN = {
   // the map open, so there is a plaza to drive around rather than a solid
   // block of buildings, and the outer one runs past the ring up to where the
   // beach starts.
-  innerRadius: WORLD.ringRadius * 0.3,
-  outerRadius: WORLD.halfSize * 0.9,
+  // The disc is deliberately smaller than the field's proportions would suggest,
+  // so there is open ground to drive across between the town and the boundary.
+  // Filling 90% of the width with buildings read as cramped.
+  innerRadius: WORLD.ringRadius * 0.32,
+  outerRadius: WORLD.halfSize * 0.74,
   // Nothing is built within this distance of the ring road's centreline. It is
   // wider than the road itself so buildings sit back from the kerb and the
   // street keeps a verge, and it is what leaves the middle of town open.
   ringKeepOut: 30,
-  blockers: 78,
+  // Buildings per reference field, scaled by area. The reference value is
+  // lower than the field size alone would suggest: the map is meant to feel
+  // open, so the town is thinner than an exact area match to the old 208 field.
+  buildingsPerReference: 24,
+  blockers: 30,
   posters: 42,
 };
 
