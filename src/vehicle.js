@@ -81,6 +81,10 @@ export class Vehicle {
   repair() {
     this.damage = 0;
     this.impactShake = 0;
+    // Damage is only re-rendered when its level crosses a threshold, so a full
+    // repair has to force a refresh or the dents stay on a pristine car.
+    this._lastDentLevel = undefined;
+    this.applyDents();
   }
 
   // `input` is { throttle: -1..1, steer: -1..1, handbrake: bool }.
