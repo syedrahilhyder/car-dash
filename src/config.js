@@ -169,6 +169,19 @@ export function carFor(key) {
 
 // Handling numbers are arcade rather than simulated. The three cars are meant to
 // read as: all-rounder, heavy luxobarge, and twitchy track weapon.
+//
+// `accel` only decides how quickly a car reaches its own `topSpeed`: the cap is
+// what limits it, so lowering these does not touch the top end the speedo shows.
+// What it does change is the pull off the line, and these were about a third too
+// eager there. Rounded to the speedo's km/h, the BMW now takes 0.76 s to 100 and
+// 1.56 s to 200 rather than 0.58 and 1.18; the Rolls and the Porsche move by the
+// same fraction, so the three keep their relative character. The field is only a
+// few hundred metres across, so a full pull is a couple of seconds either way:
+// the difference is felt as the throttle having some travel in it rather than
+// being an on/off switch.
+//
+// `launchSpeed`'s 1.5x boost off the line in vehicle.js is deliberately left
+// alone, since the complaint is about the pull, not about getting moving.
 export const CARS = [
   {
     key: 'bmw',
@@ -180,7 +193,7 @@ export const CARS = [
     // car is the responsive one rather than the twitchy one; the Porsche keeps
     // its edge in the corners and the Rolls in a shoving match.
     topSpeed: 111,
-    accel: 1.35,
+    accel: 1.02,
     grip: 1.0,
     handbrake: 0.85,
     durability: 1.0,
@@ -194,7 +207,7 @@ export const CARS = [
     name: 'Rolls-Royce',
     blurb: 'Heavy and planted. Shrugs off police contact.',
     topSpeed: 56,
-    accel: 0.78,
+    accel: 0.6,
     grip: 0.82,
     handbrake: 0.7,
     durability: 1.9,
@@ -207,7 +220,7 @@ export const CARS = [
     name: 'Porsche 911',
     blurb: 'Loose at the rear and delicate. Rewards throttle control.',
     topSpeed: 68,
-    accel: 1.14,
+    accel: 0.86,
     grip: 0.9,
     handbrake: 1.0,
     durability: 0.75,
