@@ -44,7 +44,9 @@ export class CarDashGame {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.4, 900);
+    // The far plane has to clear the whole field, or the far side of the map
+    // is clipped away as the camera swings round.
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.4, WORLD.halfSize * 3.5);
 
     this.world = buildWorld(this.scene);
     this.pursuit = new Pursuit(this.scene, this.world);

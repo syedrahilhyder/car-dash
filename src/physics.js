@@ -56,6 +56,14 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
       if (c.movable) {
         c.hp = (c.hp ?? 1) - impactSpeed * 0.14;
         if (c.hp <= 0) c.destroyed = true;
+        // A solid car that is shoved has to take its mesh with it, or the
+        // bodywork and the collider drift apart and the collider stops being
+        // anywhere near what the player can see.
+        if (c.mesh && c.centre) {
+          c.centre.x = (c.minX + c.maxX) / 2;
+          c.centre.z = (c.minZ + c.maxZ) / 2;
+          c.mesh.position.set(c.centre.x, c.mesh.position.y, c.centre.z);
+        }
       }
       if (!slowestHit || impactSpeed > slowestHit.speed) {
         slowestHit = { speed: impactSpeed, collider: c };

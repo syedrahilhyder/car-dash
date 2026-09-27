@@ -1,5 +1,4 @@
 import { CARS } from './config.js';
-import { drawPortrait } from './poster.js';
 
 // Wires the DOM: car select screen, on-screen controls, HUD and messages.
 export function initUI() {
@@ -19,10 +18,6 @@ export function initUI() {
     heatBar: el('heatBar'),
     status: el('status'),
     toast: el('toast'),
-    poster: el('poster'),
-    posterFace: el('posterFace'),
-    posterName: el('posterName'),
-    posterBounty: el('posterBounty'),
     resetBtn: el('resetBtn'),
     cameraBtn: el('cameraBtn'),
     helpBtn: el('helpBtn'),
@@ -37,12 +32,7 @@ export function initUI() {
     loading: el('loading'),
   };
 
-  // Wanted poster portrait, shared with the posters pasted onto the city
-  // walls so the two never drift apart.
-  drawPortrait(ui.posterFace.getContext('2d'));
-
   let selected = CARS[0].key;
-  renderPosterFor(CARS[0]);
   renderCars();
   el('loading').classList.add('hidden');
   ui.startScreen.classList.remove('hidden');
@@ -66,20 +56,9 @@ export function initUI() {
       card.addEventListener('click', () => {
         selected = car.key;
         renderCars();
-        renderPosterFor(car);
       });
       ui.carGrid.appendChild(card);
     }
-  }
-
-  // The bounty scales with the car rather than being fixed, so the poster
-  // reads as this car's notice rather than a generic prop.
-  function renderPosterFor(car) {
-    ui.posterName.textContent = car.name;
-    const bounty = 1500 + Math.round(car.topSpeed * 40);
-    // Built from a char code so the currency symbol survives any tooling
-    // that treats a bare dollar sign as an interpolation start.
-    ui.posterBounty.textContent = String.fromCharCode(36) + bounty.toLocaleString('en-US');
   }
 
   const callbacks = {};
@@ -227,8 +206,6 @@ export function initUI() {
       ui.wanted.textContent = level > 0 ? '★'.repeat(level) : '—';
       ui.wanted.dataset.level = String(level);
       ui.heatBar.style.opacity = level > 0 ? '1' : '0.25';
-      // The poster only goes up once the chase is serious.
-      ui.poster.classList.toggle('show', level >= 3);
     },
     setStatus(text) {
       if (ui.status.textContent === text) return;

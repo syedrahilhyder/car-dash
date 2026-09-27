@@ -2,13 +2,46 @@
 // be adjusted without hunting through modules.
 
 export const WORLD = {
-  // The drivable field is a square centred on the origin.
-  halfSize: 208,
+  // The drivable field is a square centred on the origin. This is the one
+  // value that sets the size of the world: the ring road, the town's building
+  // band, the beach and the perimeter all derive from it, and the town's
+  // populations scale with the area, so the place stays as busy as it was at
+  // 208 rather than becoming a big empty field.
+  halfSize: 624,
   wallHeight: 4,
   roadHalfWidth: 9,
-  // Loop radius of the ring road that circles the town.
-  ringRadius: 120,
+  // Loop radius of the ring road that circles the town. Kept at the same
+  // fraction of the field so the ring, the spurs and the POI offsets that were
+  // placed against it keep their relationships.
+  ringRadius: 360,
 };
+
+// How far outside the ring road the town's buildings may sit, and how much of
+// it there is. The counts are for the reference field size below.
+export const TOWN = {
+  // The town fills a disc rather than a ribbon beside the ring road. Both
+  // radii are fractions of the ring: the inner one leaves the very middle of
+  // the map open, so there is a plaza to drive around rather than a solid
+  // block of buildings, and the outer one runs past the ring up to where the
+  // beach starts.
+  innerRadius: WORLD.ringRadius * 0.3,
+  outerRadius: WORLD.halfSize * 0.9,
+  // Nothing is built within this distance of the ring road's centreline. It is
+  // wider than the road itself so buildings sit back from the kerb and the
+  // street keeps a verge, and it is what leaves the middle of town open.
+  ringKeepOut: 30,
+  blockers: 78,
+  posters: 42,
+};
+
+// The field size the town's populations were tuned against. `areaScale` lets a
+// module that fills an area keep the same density when the world grows, so a
+// bigger map is a bigger town rather than the same town with more grass.
+export const REFERENCE_HALF_SIZE = 208;
+
+export function areaScale() {
+  return (WORLD.halfSize / REFERENCE_HALF_SIZE) ** 2;
+}
 
 export const PHYSICS = {
   gravity: 38,
@@ -25,6 +58,12 @@ export const PHYSICS = {
   // power curve only decides how quickly that cap is reached.
   // Below this speed the throttle bites fully, so cars pull away cleanly.
   launchSpeed: 4,
+  // Brake doubles as reverse. The hand-over has to look for the speed the
+  // clamp can actually reach, which is this, and the car has to sit still for
+  // the delay first, so a stop short of a wall does not roll into a reverse
+  // sprint the moment the driver holds the brake. See Vehicle.update.
+  reverseHandoffSpeed: 2.5,
+  reverseHandoffDelay: 0.25,
   // Fraction of the top speed over which full power tapers to zero. Keeping
   // this small holds power through the whole range so the cap is a firm,
   // reachable ceiling rather than an asymptotic crawl.
@@ -44,8 +83,12 @@ export const PHYSICS = {
 
 export const POLICE = {
   // Release distance: beyond this the cruiser backs off, so chases stay alive
-  // instead of pinning the player to a wall.
-  giveUpDistance: 190,
+  // instead of pinning the player to a wall. It is a fraction of the field
+  // rather than a fixed number of metres: a chase that ends because you are
+  // 190 m away is a long lead in a 208-unit field and barely a gap in a 624
+  // one, and cruisers would retire out of sight the moment the player was
+  // running quickly. Roughly 0.91 of halfSize, as it was at 208.
+  giveUpDistance: WORLD.halfSize * 0.91,
   ramDistance: 96,
   spawnTimerSeconds: 1.6,
   // Heat per second is damped by this; it sets how long a chase takes to build.
@@ -65,7 +108,10 @@ export const CARS = [
     key: 'bmw',
     name: 'BMW M4',
     blurb: 'Balanced all-rounder. Quick to change direction.',
-    topSpeed: 62,
+    // The all-rounder sits between the Rolls and the Porsche. It used to be
+    // the slowest thing on the road, which made the car most players pick the
+    // one that felt worst to drive.
+    topSpeed: 74,
     accel: 1.0,
     grip: 1.0,
     handbrake: 0.85,
@@ -90,7 +136,7 @@ export const CARS = [
   {
     key: 'porsche',
     name: 'Porsche 911',
-    blurb: 'Low, fast and loose at the rear. Rewards throttle control.',
+    blurb: 'Loose at the rear and delicate. Rewards throttle control.',
     topSpeed: 68,
     accel: 1.14,
     grip: 0.9,

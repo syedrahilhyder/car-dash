@@ -31,6 +31,8 @@ export class Vehicle {
     this.impactShake = 0;
     this.slideAmount = 0;
 
+    this._brakeHeldTime = 0;
+
     const visual =
       this.spec.key === 'police'
         ? buildPoliceMesh({ onLivery: this.spec.accent })
@@ -72,6 +74,7 @@ export class Vehicle {
     this.lastRamp = null;
     this._wallHitCooldown = 0;
     this._edgeHitCooldown = 0;
+    this._brakeHeldTime = 0;
   }
 
   applyDamage(amount) {
@@ -109,7 +112,16 @@ export class Vehicle {
     // Negated: `right` is (cos h, 0, -sin h), so a positive heading delta
     // swings `forward` toward the car's left. Steering right (+1) therefore
     // needs a negative yaw to actually turn the car right.
-    const targetYaw = -steerInput * maxSteer * Math.sign(forwardSpeed || 1);
+    //
+    // The travel-direction factor is deliberately not applied to a car that is
+    // spun round. Flipping the sign on negative `forwardSpeed` meant that on
+    // the frames where a spinning car's forward speed crossed zero the yaw
+    // target jumped across a discontinuity, so the wheels dragged it further
+    // round and kept full throttle pinned the spin instead of letting the
+    // driver straighten out. Reversing still steers as a reversing car does,
+    // because the throttle never puts it into reverse while the car points
+    // forward.
+    const targetYaw = -steerInput * maxSteer;
     this.angularVelocity += (targetYaw - this.angularVelocity) * Math.min(1, PHYSICS.steerSpeed * dt);
     // `angularVelocity` is a yaw rate in rad/s, so turning the car into heading
     // must scale by dt like any other integration step; without it the turn
@@ -133,8 +145,15 @@ export class Vehicle {
     // topSpeed is what actually limits it.
     let accel = 0;
     if (input.throttle > 0) {
+      // Gas drives the car the way its nose points. This branch is the reason
+      // the control used to invert: the thrust here was a flat
+      // `-brakeForce`, so a car rolling backwards under full throttle
+      // accelerated further into reverse instead of coming back, and the next
+      // press of the gas had to claw that speed off before the wheels turned
+      // forward. It is a thrust, so it is positive; the clamp below turns it
+      // into "less reverse" on a car already travelling backwards.
       if (forwardSpeed < -0.5) {
-        accel = -PHYSICS.brakeForce * power;
+        accel = PHYSICS.brakeForce * power;
       } else {
         // Pull hard through most of the range, then taper over the last
         // stretch. A pure `1 - speed/topSpeed` curve approaches the cap
@@ -149,11 +168,24 @@ export class Vehicle {
         if (forwardSpeed < PHYSICS.launchSpeed) accel *= 1.5;
       }
     } else if (input.throttle < 0) {
-      if (forwardSpeed > 0.5) {
+      // Brake, then reverse, on one held control. The hand-over has to test
+      // against the speed the clamp below can actually reach: a held brake
+      // parks the car within `reverseHandoffSpeed` of zero, and the old check
+      // looked for 0.5 m/s, so the branch never fired and the car was left
+      // braking against a clamp that had already stopped it.
+      const stopped = Math.abs(forwardSpeed) < PHYSICS.reverseHandoffSpeed;
+      if (forwardSpeed > 0.5 || (stopped && this._brakeHeldTime < PHYSICS.reverseHandoffDelay)) {
         accel = -PHYSICS.brakeForce * power;
       } else {
         accel = -PHYSICS.reverseForce * power;
       }
+      // The dwell at a standstill is what keeps this from becoming the runaway
+      // it used to be. Without it, one held brake runs the car up to reverse
+      // speed and the next press of the gas has to claw all of it back, which
+      // is the "gas does not go forward" report.
+      this._brakeHeldTime = stopped ? this._brakeHeldTime + dt : 0;
+    } else {
+      this._brakeHeldTime = 0;
     }
 
     // Coasting and the handbrake both bleed speed off.
@@ -170,11 +202,8 @@ export class Vehicle {
     const driveFactor = this.airborne ? 0 : 1;
 
     // Clamp to a top speed that degrades as the car takes damage.
-    const newForwardSpeed = THREE.MathUtils.clamp(
-      forwardSpeed + accel * dt * driveFactor,
-      -topSpeed * 0.5,
-      topSpeed,
-    );
+    const newForwardSpeed = THREE.MathUtils.clamp(forwardSpeed + accel * dt * driveFactor, -topSpeed * 0.5, topSpeed);
+
     const newLateralSpeed = lateralSpeed * (1 - lateralGripFactor);
     this.slideAmount = Math.min(1, Math.abs(lateralSpeed) / 16);
 

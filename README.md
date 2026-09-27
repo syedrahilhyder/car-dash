@@ -33,9 +33,9 @@ a ramp run-up or a POI bay.
 
 | Car | Top speed | Character |
 | --- | --- | --- |
-| BMW M4 | 62 m/s | Balanced, quick to change direction |
+| BMW M4 | 74 m/s | Fastest, balanced, quick to change direction |
 | Rolls-Royce | 56 m/s | Heavy, planted, shrugs off contact |
-| Porsche 911 | 68 m/s | Fast, loose at the rear, fragile |
+| Porsche 911 | 68 m/s | Loose at the rear and delicate, rewards throttle control |
 
 ## Damage
 

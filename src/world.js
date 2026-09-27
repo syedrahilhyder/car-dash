@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD, POI, RAMP_LAUNCH } from './config.js';
+import { WORLD, TOWN, POI, RAMP_LAUNCH, areaScale } from './config.js';
 import { addRamp, BEACH, ramps } from './terrain.js';
 import { buildCarMesh } from './models.js';
 import { makePosterTexture } from './poster.js';
@@ -30,24 +30,38 @@ const S = WORLD.halfSize;
 // because a building on the roadway walls the player in without warning.
 function overlapsRoad(x, z, halfW, halfD) {
   const clearance = WORLD.roadHalfWidth + 3;
+  const ring = WORLD.ringRadius;
 
-  // Ring road: test the nearest point of the box to the origin against the
-  // annulus, then pad by the box's own reach so corners are covered.
+  // Ring road. A box does not sit at one distance from the origin, it spans a
+  // range of them, so the road overlaps the footprint exactly when that range
+  // meets the road's own band. Testing a single "nearest distance" against the
+  // annulus is what let buildings stand on the tarmac: a road clipping a corner
+  // of a footprint can pass well clear of the footprint's nearest point to the
+  // origin, and the centre-based test the code used before that was wrong in
+  // the same way for the opposite reason.
   const nearestX = Math.max(Math.abs(x) - halfW, 0);
   const nearestZ = Math.max(Math.abs(z) - halfD, 0);
   const nearest = Math.hypot(nearestX, nearestZ);
-  const reach = Math.hypot(nearestX, nearestZ) + Math.min(halfW, halfD);
-  if (nearest <= WORLD.ringRadius + clearance && reach >= WORLD.ringRadius - clearance) return true;
-  if (nearest >= WORLD.ringRadius - clearance && nearest <= WORLD.ringRadius + clearance) return true;
+  const farthest = Math.hypot(Math.abs(x) + halfW, Math.abs(z) + halfD);
+  const inner = ring - clearance;
+  const outer = ring + clearance;
+  if (farthest >= inner && nearest <= outer) return true;
 
   // Southern spur: |x| < roadHalfWidth down to the south edge.
-  if (Math.abs(x) - halfW < clearance && z - halfD < -WORLD.ringRadius) return true;
-  // Eastern spur: |z| < roadHalfWidth out to the east edge.
-  if (Math.abs(z) - halfD < clearance && x - halfW < WORLD.ringRadius && x + halfW > 0) return true;
+  if (Math.abs(x) - halfW < clearance && z - halfD < -ring) return true;
+  // Eastern spur: |z| < roadHalfWidth out to the east edge. It runs from the
+  // origin, past the ring, to the boundary, so the x bounds are those two ends
+  // and not the ring radius the old test compared against.
+  if (Math.abs(z) - halfD < clearance && x - halfW < S && x + halfW > 0) return true;
 
-  // Infield: leave the open middle free of buildings so there is somewhere to
-  // actually drive between the ring and the spurs.
-  if (Math.hypot(x, z) - Math.max(halfW, halfD) < WORLD.ringRadius - clearance - 26) return true;
+  // The verge. Buildings sit back from the ring road rather than at the kerb,
+  // which is the same interval test widened into a corridor either side of the
+  // centreline. The check that used to live here compared the distance to the
+  // building against the radius of the ring, which rejected everything near the
+  // origin: the middle of the map is the furthest point from the ring, and it
+  // read as the closest.
+  const middleKeepOut = TOWN.ringKeepOut;
+  if (farthest >= ring - middleKeepOut && nearest <= ring + middleKeepOut) return true;
 
   return false;
 }
@@ -55,7 +69,10 @@ function overlapsRoad(x, z, halfW, halfD) {
 // Builds the whole static scene and returns the colliders the physics needs.
 export function buildWorld(scene) {
   scene.background = new THREE.Color(0x8fc4e8);
-  scene.fog = new THREE.Fog(0x9fcbe9, 190, 520);
+  // Fog distances are a fraction of the field, not a fixed number of metres.
+  // At a fixed 190/520 a field three times the size would fade out most of the
+  // town and the ring road would sit inside the fog bank.
+  scene.fog = new THREE.Fog(0x9fcbe9, S * 0.91, S * 2.5);
 
   const colliders = [];
   const props = new THREE.Group();
@@ -77,15 +94,21 @@ export function buildWorld(scene) {
 function addLights(scene) {
   scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6a6055, 1.35));
   const sun = new THREE.DirectionalLight(0xfff2dd, 2.1);
-  sun.position.set(120, 180, 90);
+  sun.position.set(S * 0.58, S * 0.87, S * 0.43);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -220;
-  sun.shadow.camera.right = 220;
-  sun.shadow.camera.top = 220;
-  sun.shadow.camera.bottom = -220;
+  // The shadow frustum has to reach the far side of the field, so it follows
+  // the field size. The 4096 map comes with it: the same shadow map stretched
+  // over a much larger area is what the bare `bias` below is compensating for,
+  // and the speckle would come straight back without the extra resolution.
+  const reach = S * 1.06;
+  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.camera.left = -reach;
+  sun.shadow.camera.right = reach;
+  sun.shadow.camera.top = reach;
+  sun.shadow.camera.bottom = -reach;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 600;
+  sun.shadow.camera.far = S * 3.5;
   // A shadow map this coarse over a 440-unit frustum leaves each texel
   // covering real ground area, which reads as flickering speckle on flat
   // surfaces as the camera moves; bias pushes the shadow test off the
@@ -96,8 +119,13 @@ function addLights(scene) {
 }
 
 function addGround(scene, props) {
+  // One vertex per 8 units of field. A two-triangle plane this large puts a
+  // single interpolation across the whole town, which reads badly once it is
+  // this size; the grid gives the light something to vary over without adding
+  // meaningful cost at these counts.
+  const grid = Math.max(1, Math.round((S * 2) / 8));
   const grass = new THREE.Mesh(
-    new THREE.PlaneGeometry(S * 2, S * 2, 1, 1),
+    new THREE.PlaneGeometry(S * 2, S * 2, grid, grid),
     new THREE.MeshStandardMaterial({ color: 0x5f8f4e, roughness: 1 }),
   );
   grass.rotation.x = -Math.PI / 2;
@@ -271,12 +299,14 @@ function addRamps(colliders, props) {
   const rampMat = new THREE.MeshStandardMaterial({ color: 0x6f7780, roughness: 0.85 });
   const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf2c14e, emissive: 0x3a2e0d, roughness: 0.8 });
 
+  // Positions track the ring road, so the ramps keep the same relationship to
+  // the track as the field grows. Their sizes stay absolute: a ramp is a ramp.
   const layout = [
-    { x: 0, z: -46, rotation: 0, length: 20, width: 12 },
-    { x: -74, z: 78, rotation: Math.PI * 0.5, length: 20, width: 12 },
-    { x: 84, z: -58, rotation: Math.PI * 1.5, length: 20, width: 12 },
-    { x: -118, z: 4, rotation: Math.PI, length: 18, width: 11 },
-    { x: 150, z: 96, rotation: Math.PI * 0.25, length: 18, width: 11 },
+    { x: 0, z: WORLD.ringRadius * -0.38, rotation: 0, length: 20, width: 12 },
+    { x: WORLD.ringRadius * -0.62, z: WORLD.ringRadius * 0.65, rotation: Math.PI * 0.5, length: 20, width: 12 },
+    { x: WORLD.ringRadius * 0.7, z: WORLD.ringRadius * -0.48, rotation: Math.PI * 1.5, length: 20, width: 12 },
+    { x: WORLD.ringRadius * -0.98, z: WORLD.ringRadius * 0.03, rotation: Math.PI, length: 18, width: 11 },
+    { x: WORLD.ringRadius * 1.25, z: WORLD.ringRadius * 0.8, rotation: Math.PI * 0.25, length: 18, width: 11 },
   ];
 
   for (const cfg of layout) {
@@ -331,7 +361,7 @@ function addTown(props, colliders) {
   // One shared texture for every wall poster, so the artwork is rasterised
   // once no matter how many buildings carry a copy.
   const posterTexture = makePosterTexture();
-  let posterBudget = 14;
+  let posterBudget = Math.round(TOWN.posters * areaScale());
   const palette = [0xcfd6dd, 0xb8c4cf, 0xd8cbb4, 0xc2b6a4, 0x9fb0bd, 0xdcd6cc];
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x7a4b3a, roughness: 0.9 });
   const windowMat = new THREE.MeshStandardMaterial({
@@ -344,17 +374,47 @@ function addTown(props, colliders) {
   // Blocks scattered through town. Placement is rejection-sampled against the
   // road network so no building ever blocks the route the player drives.
   let placed = 0;
-  for (let attempt = 0; attempt < 220 && placed < 44; attempt++) {
+  const wanted = Math.round(44 * areaScale());
+  // Cap the auto-raise rather than scaling it, so the growth comes from the
+  // density and there is still a spending limit per building.
+  const maxHeight = Math.min(35, (9 + 26) * Math.sqrt(areaScale()));
+  // The town is a disc inside a square field, so it holds fewer buildings than
+  // its share of the area suggests and every attempt costs a road test against
+  // the whole block list. Budget for the rejection rate rather than stopping
+  // short with the field half built.
+  const budget = wanted * 16;
+  for (let attempt = 0; attempt < budget && placed < wanted; attempt++) {
     const w = 12 + seed() * 16;
     const d = 12 + seed() * 16;
-    const h = 9 + seed() * 26;
+    const h = 9 + seed() * (maxHeight - 9);
     const halfW = w / 2;
     const halfD = d / 2;
 
     const angle = seed() * Math.PI * 2;
-    const radius = WORLD.ringRadius * (0.35 + seed() * 0.75);
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
+    // Buildings fill the town, not just a ribbon beside the ring road. A band
+    // around the ring is the obvious reading of "along the street", but the
+    // ring is a circle and the buildings are squares, so the band wastes most
+    // of the ground it claims and the whole middle of the map stays empty
+    // grass. Sampling a disc instead puts blocks along both sides of the ring
+    // and through the middle of town, and the road tests below clear the
+    // streets through it.
+    const inner = TOWN.innerRadius;
+    const outer = TOWN.outerRadius;
+    // Square-rooted so the sample is even over the disc rather than clustered
+    // in the middle, which is what a raw uniform radius would give.
+    const radius = Math.sqrt(inner * inner + seed() * (outer * outer - inner * inner));
+    // The north arc stops short of the beach, or every attempt up there is
+    // thrown away by the beach test below. `northLimit` is the furthest north a
+    // building may sit: the sand starts at BEACH.zStart and the palms need room
+    // in front of it.
+    const northLimit = BEACH.zStart - 40;
+    let x = Math.cos(angle) * radius;
+    let z = Math.sin(angle) * radius;
+    if (z > northLimit) {
+      const alongX = Math.abs(x);
+      if (northLimit * northLimit - alongX * alongX <= 0) continue;
+      z = northLimit;
+    }
 
     if (Math.abs(x) + halfW > S - 12 || Math.abs(z) + halfD > S - 12) continue;
     if (z + halfD > BEACH.zStart - 10) continue;
@@ -417,12 +477,13 @@ function addTown(props, colliders) {
 
   // Concrete blocks the player can thread between. These are obstacles, not
   // walls, so they only need to stay off the road surface itself.
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0, wanted = Math.round(TOWN.blockers * areaScale()); i < wanted; i++) {
     const w = 5 + seed() * 5;
     const h = 1.6 + seed() * 1.6;
     const d = 5 + seed() * 5;
     const x = -S + 30 + seed() * (S * 2 - 60);
-    const z = -S + 30 + seed() * (S * 1.4 - 60);
+    // Stops short of the beach, as before: the sand is not a building site.
+    const z = -S + 30 + seed() * (BEACH.zStart - 40 + S - 30);
     if (overlapsRoad(x, z, w / 2, d / 2)) continue;
     if (ramps.some((r) => Math.hypot(r.x - x, r.z - z) < 22)) continue;
     if (POI.some((p) => Math.hypot(p.position.x - x, p.position.z - z) < 24)) continue;
@@ -517,13 +578,25 @@ function addPoiBuildings(props, colliders) {
 function addParkedCars(props, colliders) {
   const seed = mulberry(3131);
   const keys = ['bmw', 'porsche', 'rolls'];
-  for (let i = 0; i < 9; i++) {
+  const count = Math.round(9 * areaScale());
+  for (let i = 0; i < count; i++) {
     const key = keys[i % keys.length];
     const built = buildCarMesh(
       { ...carSpecFor(key), body: { ...carSpecFor(key).body } },
       { colorOverride: [0x9c3b3b, 0x3b6f9c, 0xd8d2c4, 0x40484f, 0xb0723c][i % 5] },
     );
-    const angle = (i / 9) * Math.PI * 2 + 0.4;
+    // The parked car is dropped into the same space the physics car uses: the
+    // resolver insists a vehicle keep its broad-phase circle clear of a
+    // collider, and that circle is measured from the car's centre, so an
+    // axis-aligned box hugging the bodywork is one the resolver can never
+    // actually clear. It parks the car 1.8 m short of a 2.6 m face, leaving it
+    // inside the solid, and the next frame pushes it out again. That is the
+    // jitter felt against a parked car: the collider has to be the circle the
+    // resolver wants to keep clear, not the silhouette of the bodywork.
+    const spec = carSpecFor(key);
+    const radius = Math.hypot(spec.body.width / 2, spec.body.length / 2) * 0.72;
+    const angle = (i / count) * Math.PI * 2 + 0.4;
+    // They line the ring road, so they scale with it.
     const r = WORLD.ringRadius + 16;
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
@@ -531,11 +604,18 @@ function addParkedCars(props, colliders) {
     built.group.position.set(x, 0, z);
     built.group.rotation.y = heading;
     props.add(built.group);
-    const halfW = carSpecFor(key).body.width / 2 + 0.3;
-    const halfL = carSpecFor(key).body.length / 2 + 0.3;
-    const hw = Math.abs(halfW * Math.cos(heading)) + Math.abs(halfL * Math.sin(heading));
-    const hd = Math.abs(halfW * Math.sin(heading)) + Math.abs(halfL * Math.cos(heading));
-    colliders.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, height: 1.4, movable: true });
+    colliders.push({
+      minX: x - radius,
+      maxX: x + radius,
+      minZ: z - radius,
+      maxZ: z + radius,
+      height: 1.4,
+      movable: true,
+      // Remembered so the push-out below can put the body back on the surface
+      // its collider describes.
+      mesh: built.group,
+      centre: { x, z },
+    });
   }
 }
 
