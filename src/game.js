@@ -162,14 +162,20 @@ export class CarDashGame {
     }
 
     if (inside.id === 'garage') {
+      // Repair takes a moment rather than being instant, so driving through the
+      // bay at speed is not the same as stopping in it.
+      if (this.player.damage <= 0.01) {
+        this.player.repair();
+        this.lastGarageUse = 0;
+        this.ui.setStatus('Garage — car is pristine');
+        return;
+      }
       this.lastGarageUse += dt;
-      if (this.player.damage > 0.01 && this.lastGarageUse > 0.4) {
-        const before = this.player.damage;
-        this.player.damage = Math.max(0, this.player.damage - dt * 1.6);
-        this.ui.setStatus('Repairing…');
-        if (before > 0.05 && this.player.damage <= 0.05) this.ui.toast('Good as new');
-      } else {
-        this.ui.setStatus(this.player.damage <= 0.01 ? 'Garage — car is pristine' : 'Repairing…');
+      this.player.damage = Math.max(0, this.player.damage - dt * 1.6);
+      this.ui.setStatus(`Repairing… ${Math.round(this.player.damage * 100)}%`);
+      if (this.player.damage === 0) {
+        this.player.repair();
+        this.ui.toast('Good as new');
       }
       return;
     }
