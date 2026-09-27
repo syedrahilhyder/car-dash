@@ -1,0 +1,574 @@
+/**
+ * Car Dash — navy and gold racing UI.
+ * Design intent: information sits at the edges of the screen, the middle stays
+ * clear for driving, and every control is reachable by one thumb on a phone.
+ */
+
+:root {
+  --navy-900: #0a1020;
+  --navy-800: #101725;
+  --navy-700: #17223a;
+  --navy-600: #202f4d;
+  --navy-500: #2c4066;
+  --gold-400: #f2c14e;
+  --gold-500: #e0a72c;
+  --red-500: #e0563f;
+  --red-600: #c43d29;
+  --green-500: #5bc98a;
+  --ink: #f2f5f9;
+  --ink-dim: rgba(242, 245, 249, 0.62);
+  --ink-faint: rgba(242, 245, 249, 0.28);
+  --radius: 16px;
+  --pad-gap: 14px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--navy-900);
+  color: var(--gold-400);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 40;
+}
+
+/* ---------------------------------------------------------------- overlays */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(32, 47, 77, 0.92), rgba(10, 16, 32, 0.97));
+  backdrop-filter: blur(6px);
+  z-index: 30;
+  overflow-y: auto;
+}
+
+.panel {
+  width: min(760px, 100%);
+  background: linear-gradient(180deg, var(--navy-700), var(--navy-800));
+  border: 1px solid rgba(242, 193, 78, 0.24);
+  border-radius: 22px;
+  padding: 26px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, #fff, var(--gold-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  margin: 6px 0 22px;
+  color: var(--ink-dim);
+}
+
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.car-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.car-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(242, 193, 78, 0.5);
+}
+
+.car-card.selected {
+  border-color: var(--gold-400);
+  background: rgba(242, 193, 78, 0.1);
+  box-shadow: 0 0 0 1px var(--gold-400) inset;
+}
+
+.car-card .swatch {
+  width: 46px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.car-name {
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.car-blurb {
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.car-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.car-stats b {
+  color: var(--gold-400);
+}
+
+.primary {
+  margin-top: 22px;
+  width: 100%;
+  padding: 16px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--navy-900);
+  background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+  border: none;
+  border-radius: var(--radius);
+}
+
+.primary:active {
+  transform: translateY(1px);
+}
+
+.controls-hint {
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+/* --------------------------------------------------------------------- HUD */
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hud-top-left {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.hud-top-right {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  right: calc(12px + var(--safe-right));
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.hud-top-right button {
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(10, 16, 32, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.hud-top-right button:active {
+  background: rgba(242, 193, 78, 0.22);
+}
+
+/* Speedometer */
+.speedo {
+  position: relative;
+  width: 132px;
+  height: 92px;
+  padding: 8px;
+  background: rgba(10, 16, 32, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+}
+
+.speedo svg {
+  width: 100%;
+  display: block;
+}
+
+.needle {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  width: 2px;
+  height: 40px;
+  background: var(--gold-400);
+  border-radius: 2px;
+  transform-origin: bottom center;
+  transform: rotate(-120deg);
+  transition: transform 0.08s linear;
+  box-shadow: 0 0 10px rgba(242, 193, 78, 0.6);
+}
+
+.readout {
+  position: absolute;
+  inset: auto 0 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.readout #speedo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout small {
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.gear {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  background: var(--gold-400);
+  border-radius: 5px;
+}
+
+/* Damage and wanted gauges */
+.gauges {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  min-width: 168px;
+  background: rgba(10, 16, 32, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+}
+
+.gauge {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.gauge-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar .fill {
+  height: 100%;
+  width: 0%;
+  background: var(--green-500);
+  border-radius: 999px;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.gauge-value {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.stars {
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  color: var(--gold-400);
+}
+
+.stars[data-level='0'] {
+  color: var(--ink-faint);
+}
+
+.heat {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.heat-flight {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, var(--red-500), transparent);
+  opacity: 0.25;
+  transition: opacity 0.3s ease;
+}
+
+/* Status + toast */
+.status {
+  position: absolute;
+  top: calc(112px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  color: var(--gold-400);
+  background: rgba(10, 16, 32, 0.72);
+  border: 1px solid rgba(242, 193, 78, 0.3);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  max-width: 88vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status.visible {
+  opacity: 1;
+}
+
+.toast {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  padding: 10px 20px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--navy-900);
+  background: var(--gold-400);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Help panel */
+.help-panel {
+  position: absolute;
+  top: calc(60px + var(--safe-top));
+  right: calc(12px + var(--safe-right));
+  width: min(340px, 86vw);
+  padding: 16px 18px;
+  background: rgba(10, 16, 32, 0.92);
+  border: 1px solid rgba(242, 193, 78, 0.3);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+}
+
+.help-panel.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.help-panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold-400);
+}
+
+.help-panel h3:not(:first-child) {
+  margin-top: 14px;
+}
+
+.help-panel p {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+
+.help-panel b {
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------- controls */
+
+.pad {
+  position: absolute;
+  bottom: calc(var(--pad-gap) + var(--safe-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: var(--pad-gap);
+  pointer-events: auto;
+}
+
+.pad-left {
+  left: calc(var(--pad-gap) + var(--safe-left));
+}
+
+.pad-right {
+  right: calc(var(--pad-gap) + var(--safe-right));
+}
+
+.round {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(16, 23, 37, 0.72);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  backdrop-filter: blur(8px);
+  transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
+  touch-action: none;
+}
+
+.round.active,
+.round:active {
+  transform: scale(0.94);
+  border-color: var(--gold-400);
+  background: rgba(242, 193, 78, 0.25);
+}
+
+.pad-left .round {
+  width: 92px;
+  height: 92px;
+  font-size: 1.5rem;
+}
+
+.round.gas {
+  width: 104px;
+  height: 104px;
+  color: var(--navy-900);
+  background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+  border-color: rgba(255, 255, 255, 0.35);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+
+.round.gas.active,
+.round.gas:active {
+  background: linear-gradient(180deg, #ffd873, var(--gold-500));
+  transform: scale(0.94);
+}
+
+.round.brake {
+  width: 88px;
+  height: 88px;
+  background: linear-gradient(180deg, var(--red-500), var(--red-600));
+  border-color: rgba(255, 255, 255, 0.3);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.round.small {
+  width: 60px;
+  height: 60px;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  align-self: flex-end;
+  color: var(--ink-dim);
+}
+
+/* Landscape phone: shrink the pads so they do not eat the view. */
+@media (max-height: 520px) {
+  .round {
+    width: 66px;
+    height: 66px;
+  }
+  .pad-left .round {
+    width: 74px;
+    height: 74px;
+  }
+  .round.gas {
+    width: 84px;
+    height: 84px;
+  }
+  .round.brake {
+    width: 72px;
+    height: 72px;
+  }
+  .round.small {
+    width: 50px;
+    height: 50px;
+  }
+  .speedo {
+    width: 108px;
+    height: 76px;
+  }
+  .gauges {
+    min-width: 148px;
+  }
+}
+
+/* Wide screens: pointer play, so hide the pads and lean on the keyboard. */
+@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
+  .pad {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

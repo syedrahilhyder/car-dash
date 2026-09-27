@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#101725" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Car Dash — a 3D open-world driving game with police chases, ramps, a garage and a beach." />
+    <title>Car Dash</title>
+    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png" />
+    <link rel="icon" href="%BASE_URL%icons/icon-192.png" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #101725;
+        color: #f2f5f9;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+        overscroll-behavior: none;
+      }
+      #scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="loading">Loading Car Dash…</div>
+
+    <!-- Car selection -->
+    <section id="start" class="overlay hidden">
+      <div class="panel">
+        <h1>Car Dash</h1>
+        <p class="tagline">Pick a car. Outrun the police. Find the ramps.</p>
+        <div id="carGrid" class="car-grid"></div>
+        <button id="startBtn" class="primary" type="button">Start driving</button>
+        <p class="controls-hint">
+          Mobile: steering pad on the left, gas and brake on the right.
+          Desktop: arrow keys or WASD, Space for handbrake, C for camera, R to respawn.
+        </p>
+      </div>
+    </section>
+
+    <!-- In-game HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top-left">
+        <div class="speedo">
+          <svg viewBox="0 0 100 60" aria-hidden="true">
+            <path d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7" stroke-linecap="round" />
+            <path d="M8 54 A42 42 0 0 1 92 54" fill="none" stroke="#f2c14e" stroke-width="7" stroke-linecap="round"
+              stroke-dasharray="132" stroke-dashoffset="88" />
+          </svg>
+          <div id="speedNeedle" class="needle"></div>
+          <div class="readout">
+            <span id="speedo">0</span><small>km/h</small>
+            <span id="gear" class="gear">N</span>
+          </div>
+        </div>
+
+        <div class="gauges">
+          <div class="gauge">
+            <span class="gauge-label">Damage</span>
+            <div class="bar"><div id="damageBar" class="fill"></div></div>
+            <span id="damagePct" class="gauge-value">0%</span>
+          </div>
+          <div class="gauge">
+            <span class="gauge-label">Wanted</span>
+            <div id="wanted" class="stars">—</div>
+          </div>
+          <div class="heat"><div id="heatBar" class="heat-flight"></div></div>
+        </div>
+      </div>
+
+      <div class="hud-top-right">
+        <button id="cameraBtn" type="button" title="Camera (C)">Camera</button>
+        <button id="resetBtn" type="button" title="Respawn (R)">Respawn</button>
+        <button id="helpBtn" type="button" title="Controls">?</button>
+      </div>
+
+      <div id="status" class="status"></div>
+      <div id="toast" class="toast"></div>
+
+      <div id="helpPanel" class="help-panel">
+        <h3>Controls</h3>
+        <p><b>Touch:</b> left pad steers, right pedals drive.</p>
+        <p><b>Keyboard:</b> ↑/W gas, ↓/S brake &amp; reverse, ←/→ or A/D steer, Shift or Space handbrake.</p>
+        <p><b>C</b> cycle camera · <b>R</b> respawn</p>
+        <h3>Places</h3>
+        <p><b>Garage</b> repairs the car to factory condition. <b>Hospital</b> and <b>Gas Station</b> are landmarks on the ring road. The <b>beach</b> is north, past the ring road.</p>
+        <h3>Police</h3>
+        <p>Drive fast or hit things and your wanted level rises. Ram cruisers hard to knock them out of service. Once the stars clear you have escaped.</p>
+      </div>
+
+      <!-- Steering, left thumb -->
+      <div id="padLeft" class="pad pad-left">
+        <button id="steerLeft" class="round" type="button" aria-label="Steer left">◀</button>
+        <button id="steerRight" class="round" type="button" aria-label="Steer right">▶</button>
+      </div>
+
+      <!-- Pedals, right thumb -->
+      <div id="padRight" class="pad pad-right">
+        <button id="handbrake" class="round small" type="button" aria-label="Handbrake">HB</button>
+        <button id="brake" class="round brake" type="button" aria-label="Brake">BRAKE</button>
+        <button id="gas" class="round gas" type="button" aria-label="Accelerate">GAS</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/styles.js"></script>
+  </body>
+</html>
