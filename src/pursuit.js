@@ -48,14 +48,16 @@ export class Pursuit {
       this.spawnTimer = POLICE.spawnTimerSeconds;
     }
 
-    // The pursuit is over once nothing is chasing and the player has stayed
-    // calm for a few seconds. Heat already decays on its own, so this only
-    // sweeps up a stale level rather than resetting it every frame.
-    if (this.activeCruisers.length === 0 && this.heat < 20) {
+    // The chase lapses once nothing is chasing and the player has driven calmly
+    // for a few seconds. The timer only runs while the player is actually
+    // laying low, so this can never clip a heat level that is still climbing.
+    const layingLow = this.activeCruisers.length === 0 && playerSpeed < 8;
+    if (layingLow) {
       this.escapeTimer += dt;
-      if (this.escapeTimer > 3.5) {
-        this.heat = 0;
-        this.escapeTimer = 0;
+      if (this.escapeTimer > 3) {
+        // Bleed the level off quickly rather than snapping it to zero.
+        this.heat = Math.max(0, this.heat - dt * 30);
+        if (this.heat === 0) this.wanted = 0;
       }
     } else {
       this.escapeTimer = 0;
