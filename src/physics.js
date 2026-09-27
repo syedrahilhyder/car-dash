@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHYSICS, WORLD } from './config.js';
-import { isWater } from './terrain.js';
+import { BEACH, isWater } from './terrain.js';
 
 // Resolves car-vs-world and car-vs-car overlap. The cars are treated as oriented
 // boxes swept against axis-aligned world colliders, which is enough for an
@@ -144,8 +144,14 @@ export function resolveWaterAndBounds(vehicle, onImpact) {
   }
 
   if (isWater(vehicle.position.x, vehicle.position.z)) {
+    // Treat the waterline as a solid wall at z = waterStart rather than
+    // teleporting the car back a fixed distance every frame. The teleport
+    // fought the throttle, so a car driven at the surf bounced across the
+    // threshold from frame to frame and juddered in place without crossing;
+    // resolving it like any other wall gives a clean stop instead.
+    vehicle.position.z = BEACH.waterStart;
+    if (vehicle.velocity.z > 0) vehicle.velocity.z = 0;
     vehicle.velocity.multiplyScalar(0.9);
-    vehicle.position.z -= 0.6;
     if (vehicle._edgeHitCooldown === 0) {
       onImpact?.(0.004, 2);
       vehicle._edgeHitCooldown = 45;

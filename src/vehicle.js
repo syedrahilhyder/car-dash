@@ -106,7 +106,10 @@ export class Vehicle {
     // uncontrollable at the top end.
     const speedRatio = THREE.MathUtils.clamp(Math.abs(forwardSpeed) / spec.topSpeed, 0, 1);
     const maxSteer = THREE.MathUtils.lerp(PHYSICS.maxSteerLow, PHYSICS.maxSteerHigh, speedRatio);
-    const targetYaw = steerInput * maxSteer * Math.sign(forwardSpeed || 1);
+    // Negated: `right` is (cos h, 0, -sin h), so a positive heading delta
+    // swings `forward` toward the car's left. Steering right (+1) therefore
+    // needs a negative yaw to actually turn the car right.
+    const targetYaw = -steerInput * maxSteer * Math.sign(forwardSpeed || 1);
     this.angularVelocity += (targetYaw - this.angularVelocity) * Math.min(1, PHYSICS.steerSpeed * dt);
     // `angularVelocity` is a yaw rate in rad/s, so turning the car into heading
     // must scale by dt like any other integration step; without it the turn
@@ -230,7 +233,9 @@ export class Vehicle {
   updateVisuals(dt, steerInput, lateralSpeed) {
     // Body roll leans out of the corner; pitch drives the nose up under power
     // and dives under braking.
-    const targetRoll = THREE.MathUtils.clamp(-steerInput * this.speedAlongForward * 0.0022, -0.16, 0.16);
+    // Roll follows the yaw sign (negated steer), so the body leans the same
+    // way the car is actually turning.
+    const targetRoll = THREE.MathUtils.clamp(steerInput * this.speedAlongForward * 0.0022, -0.16, 0.16);
     const targetPitch = THREE.MathUtils.clamp(
       (this.airborne ? this.velocity.y * 0.02 : -this.speedAlongForward * 0.0012) + this.impactShake * 0.02,
       -0.2,
@@ -249,7 +254,9 @@ export class Vehicle {
     this.wheelSpin += (this.speedAlongForward / this.spec.body.wheel) * dt;
     for (const wheel of this.wheels) {
       wheel.rotation.x = this.wheelSpin;
-      if (wheel.userData.steerable) wheel.rotation.y = steerInput * 0.42;
+      // Negated to match the yaw sign, so the front wheels point the way the
+      // car actually turns.
+      if (wheel.userData.steerable) wheel.rotation.y = -steerInput * 0.42;
     }
 
     // Skid smoke and brake lights.

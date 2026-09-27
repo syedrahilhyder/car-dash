@@ -18,6 +18,10 @@ export function initUI() {
     heatBar: el('heatBar'),
     status: el('status'),
     toast: el('toast'),
+    poster: el('poster'),
+    posterFace: el('posterFace'),
+    posterName: el('posterName'),
+    posterBounty: el('posterBounty'),
     resetBtn: el('resetBtn'),
     cameraBtn: el('cameraBtn'),
     helpBtn: el('helpBtn'),
@@ -32,7 +36,134 @@ export function initUI() {
     loading: el('loading'),
   };
 
+  // ---------------------------------------------------------------------
+  // Wanted poster portrait.
+  //
+  // Drawn from primitives rather than loaded from a file: the game ships no
+  // photographs, and a stylised mugshot suit-for-suit with the paper avoids
+  // putting any real person's face on a wanted notice.
+  // ---------------------------------------------------------------------
+  function drawPosterFace(canvas) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { width: w, height: h } = canvas;
+
+    const paper = '#d9c49a';
+    const ink = '#2a2f38';
+    const coat = '#4b5a67';
+    const skin = '#c98f63';
+    const shadow = '#a9714b';
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Backdrop: a plain height-chart wall, as in a real mugshot.
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(42, 47, 56, 0.16)';
+    ctx.lineWidth = 2;
+    for (let y = 30; y < h; y += 46) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    const cx = w / 2;
+
+    // Shoulders and coat collar.
+    ctx.fillStyle = coat;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.46, h);
+    ctx.quadraticCurveTo(cx - w * 0.42, h * 0.78, cx - w * 0.2, h * 0.72);
+    ctx.lineTo(cx + w * 0.2, h * 0.72);
+    ctx.quadraticCurveTo(cx + w * 0.42, h * 0.78, cx + w * 0.46, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Collar, lighter so the neck reads separately from the coat.
+    ctx.fillStyle = '#5f707e';
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.2, h * 0.72);
+    ctx.lineTo(cx, h * 0.85);
+    ctx.lineTo(cx + w * 0.2, h * 0.72);
+    ctx.closePath();
+    ctx.fill();
+
+    // Neck.
+    ctx.fillStyle = shadow;
+    ctx.fillRect(cx - w * 0.09, h * 0.6, w * 0.18, h * 0.16);
+
+    // Head.
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(cx, h * 0.44, w * 0.21, h * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ears.
+    ctx.beginPath();
+    ctx.ellipse(cx - w * 0.21, h * 0.45, w * 0.045, h * 0.06, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + w * 0.21, h * 0.45, w * 0.045, h * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hair, swept back and low over the brow.
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.ellipse(cx, h * 0.3, w * 0.225, h * 0.14, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.225, h * 0.3);
+    ctx.quadraticCurveTo(cx - w * 0.1, h * 0.24, cx + w * 0.225, h * 0.3);
+    ctx.lineTo(cx + w * 0.225, h * 0.24);
+    ctx.quadraticCurveTo(cx, h * 0.15, cx - w * 0.225, h * 0.24);
+    ctx.closePath();
+    ctx.fill();
+
+    // Brows.
+    ctx.fillStyle = ink;
+    ctx.fillRect(cx - w * 0.14, h * 0.4, w * 0.1, h * 0.018);
+    ctx.fillRect(cx + w * 0.04, h * 0.4, w * 0.1, h * 0.018);
+
+    // Eyes, with a catchlight so the face does not read as flat.
+    for (const dx of [-w * 0.09, w * 0.09]) {
+      ctx.fillStyle = '#f6f2e8';
+      ctx.beginPath();
+      ctx.ellipse(cx + dx, h * 0.45, w * 0.05, h * 0.028, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.arc(cx + dx, h * 0.45, w * 0.022, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(cx + dx - w * 0.008, h * 0.443, w * 0.007, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Nose and a flat, unimpressed mouth.
+    ctx.strokeStyle = shadow;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx, h * 0.47);
+    ctx.lineTo(cx - w * 0.02, h * 0.54);
+    ctx.stroke();
+
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.06, h * 0.6);
+    ctx.quadraticCurveTo(cx, h * 0.585, cx + w * 0.06, h * 0.6);
+    ctx.stroke();
+
+    // Height chart ticks down the side.
+    ctx.fillStyle = 'rgba(42, 47, 56, 0.35)';
+    for (let i = 0; i < 6; i++) {
+      ctx.fillRect(6, 40 + i * 46, 18, 2);
+    }
+  }
+
   let selected = CARS[0].key;
+  drawPosterFace(ui.posterFace);
+  renderPosterFor(CARS[0]);
   renderCars();
   el('loading').classList.add('hidden');
   ui.startScreen.classList.remove('hidden');
@@ -56,9 +187,20 @@ export function initUI() {
       card.addEventListener('click', () => {
         selected = car.key;
         renderCars();
+        renderPosterFor(car);
       });
       ui.carGrid.appendChild(card);
     }
+  }
+
+  // The bounty scales with the car rather than being fixed, so the poster
+  // reads as this car's notice rather than a generic prop.
+  function renderPosterFor(car) {
+    ui.posterName.textContent = car.name;
+    const bounty = 1500 + Math.round(car.topSpeed * 40);
+    // Built from a char code so the currency symbol survives any tooling
+    // that treats a bare dollar sign as an interpolation start.
+    ui.posterBounty.textContent = String.fromCharCode(36) + bounty.toLocaleString('en-US');
   }
 
   const callbacks = {};
@@ -206,6 +348,8 @@ export function initUI() {
       ui.wanted.textContent = level > 0 ? '★'.repeat(level) : '—';
       ui.wanted.dataset.level = String(level);
       ui.heatBar.style.opacity = level > 0 ? '1' : '0.25';
+      // The poster only goes up once the chase is serious.
+      ui.poster.classList.toggle('show', level >= 3);
     },
     setStatus(text) {
       if (ui.status.textContent === text) return;
@@ -219,4 +363,5 @@ export function initUI() {
       ui._toastTimer = setTimeout(() => ui.toast.classList.remove('show'), 1600);
     },
   };
+
 }
