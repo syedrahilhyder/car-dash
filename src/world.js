@@ -25,6 +25,12 @@ function addWallPoster(props, texture, { x, y, z, rotation = 0, scale = 1 }) {
 
 const S = WORLD.halfSize;
 
+// How much clear air is left between the player's circle and a parked car's
+// collider on contact. Without it the two circles touch at distance zero, the
+// resolver sees them overlapping again on the very next frame, and the car
+// shivers against the parked one instead of resting against it.
+const PARKED_CAR_CONTACT_GAP = 0.05;
+
 // True when a box at (x, z) with the given footprint would overlap any road.
 // Roads are the ring plus the two straight spurs; nothing may be placed on one,
 // because a building on the roadway walls the player in without warning.
@@ -599,7 +605,11 @@ function addParkedCars(props, colliders) {
     // jitter felt against a parked car: the collider has to be the circle the
     // resolver wants to keep clear, not the silhouette of the bodywork.
     const spec = carSpecFor(key);
+    // The collider is a circle of this radius, but the resolver keeps the car's
+    // own circle clear of the box, not of the circle, so the box has to be built
+    // at the same radius rather than from the bodywork. See the note above.
     const radius = Math.hypot(spec.body.width / 2, spec.body.length / 2) * 0.72;
+    const boxRadius = radius + PARKED_CAR_CONTACT_GAP;
     const angle = (i / count) * Math.PI * 2 + 0.4;
     // They line the ring road, so they scale with it.
     const r = WORLD.ringRadius + 16;
@@ -610,10 +620,10 @@ function addParkedCars(props, colliders) {
     built.group.rotation.y = heading;
     props.add(built.group);
     colliders.push({
-      minX: x - radius,
-      maxX: x + radius,
-      minZ: z - radius,
-      maxZ: z + radius,
+      minX: x - boxRadius,
+      maxX: x + boxRadius,
+      minZ: z - boxRadius,
+      maxZ: z + boxRadius,
       height: 1.4,
       movable: true,
       // Remembered so the push-out below can put the body back on the surface

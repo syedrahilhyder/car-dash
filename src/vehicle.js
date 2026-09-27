@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PHYSICS, carFor } from './config.js';
-import { buildCarMesh, buildPoliceMesh } from './models.js';
+import { buildBmwMesh, buildCarMesh, buildPoliceMesh } from './models.js';
 import { groundHeightAt, rampInfoAt } from './terrain.js';
 
 // Arcade vehicle: the body tracks position, heading and velocity by hand so the
@@ -31,12 +31,21 @@ export class Vehicle {
     this.impactShake = 0;
     this.slideAmount = 0;
 
+    // Body recoil: a critically-ish damped spring on the shell, in metres. See
+    // addBounce; it is integrated in updateVisuals.
+    this.bounceOffset = new THREE.Vector3();
+    this.bounceVelocity = new THREE.Vector3();
+
     this._brakeHeldTime = 0;
 
+    // Each model picks its own builder; they all return the same shape, so
+    // nothing downstream needs to know which one it got.
+    const buildForModel =
+      this.spec.key === 'bmw' ? buildBmwMesh : buildCarMesh;
     const visual =
       this.spec.key === 'police'
         ? buildPoliceMesh({ onLivery: this.spec.accent })
-        : buildCarMesh(this.spec, { beatUp: isPlayer, colorOverride });
+        : buildForModel(this.spec, { beatUp: isPlayer, colorOverride });
     this.group = visual.group;
     this.bodyGroup = visual.bodyGroup;
     this.wheels = visual.wheels;
@@ -75,12 +84,33 @@ export class Vehicle {
     this._wallHitCooldown = 0;
     this._edgeHitCooldown = 0;
     this._brakeHeldTime = 0;
+    this.bounceOffset.set(0, 0, 0);
+    this.bounceVelocity.set(0, 0, 0);
   }
 
   applyDamage(amount) {
     if (!this.isPlayer) return;
     this.damage = THREE.MathUtils.clamp(this.damage + amount, 0, 1);
     this.impactShake = Math.min(1, this.impactShake + amount * 6);
+  }
+
+  // Rock the body back off whatever it just hit. `normal` points away from the
+  // surface and `speed` is how fast it was hit.
+  //
+  // This is a spring on the shell, not a force on the car: the wheels stay
+  // where the physics put them, and only the bodywork is displaced and left to
+  // settle. A real impulse on the car would fight the resolver, which is
+  // holding the car clear of the wall on the very next frame.
+  addBounce(normal, speed) {
+    const strength = Math.min(1, (speed - PHYSICS.bounceMinSpeed) / (PHYSICS.bounceFullSpeed - PHYSICS.bounceMinSpeed));
+    if (strength <= 0) return;
+    // Kick the spring's velocity, not its position. For a spring starting at
+    // rest the travel is velocity / sqrt(spring), so the recoil stays
+    // proportional to the hit instead of snapping straight to the cap.
+    const kick = strength * PHYSICS.bounceMaxOffset * Math.sqrt(PHYSICS.bounceSpring);
+    this.bounceVelocity.addScaledVector(normal, kick);
+    this.bounceVelocity.clampLength(0, PHYSICS.bounceMaxOffset * Math.sqrt(PHYSICS.bounceSpring));
+    this.bounceOffset.clampLength(0, PHYSICS.bounceMaxOffset);
   }
 
   repair() {
@@ -265,7 +295,31 @@ export class Vehicle {
     }
   }
 
+  // A damped spring, integrated on the substep so a large dt cannot make it
+  // explode. `bounceOffset` is where the shell sits relative to the wheels.
+  stepBounce(dt) {
+    const sub = Math.min(4, Math.max(1, Math.ceil(dt / 0.008)));
+    const h = dt / sub;
+    for (let i = 0; i < sub; i++) {
+      const ax = -PHYSICS.bounceSpring * this.bounceOffset.x - PHYSICS.bounceDamping * this.bounceVelocity.x;
+      const ay = -PHYSICS.bounceSpring * this.bounceOffset.y - PHYSICS.bounceDamping * this.bounceVelocity.y;
+      const az = -PHYSICS.bounceSpring * this.bounceOffset.z - PHYSICS.bounceDamping * this.bounceVelocity.z;
+      this.bounceVelocity.x += ax * h;
+      this.bounceVelocity.y += ay * h;
+      this.bounceVelocity.z += az * h;
+      this.bounceOffset.x += this.bounceVelocity.x * h;
+      this.bounceOffset.y += this.bounceVelocity.y * h;
+      this.bounceOffset.z += this.bounceVelocity.z * h;
+    }
+    // Settle the last thousandth of a metre rather than springing forever.
+    if (this.bounceOffset.lengthSq() < 1e-6 && this.bounceVelocity.lengthSq() < 1e-4) {
+      this.bounceOffset.set(0, 0, 0);
+      this.bounceVelocity.set(0, 0, 0);
+    }
+  }
+
   updateVisuals(dt, steerInput, lateralSpeed) {
+    this.stepBounce(dt);
     // Body roll leans out of the corner; pitch drives the nose up under power
     // and dives under braking.
     // Roll follows the yaw sign (negated steer), so the body leans the same
@@ -284,6 +338,18 @@ export class Vehicle {
 
     this.bodyGroup.rotation.x = this.bodyPitch;
     this.bodyGroup.rotation.z = this.bodyRoll;
+    // The recoil is in world space, so it has to be turned into the body's, or
+    // a car hit while facing sideways would rock the wrong way.
+    this.bodyGroup.position.set(0, 0, 0);
+    if (this.bounceOffset.lengthSq() > 0) {
+      const cos = Math.cos(-this.heading);
+      const sin = Math.sin(-this.heading);
+      this.bodyGroup.position.set(
+        this.bounceOffset.x * cos - this.bounceOffset.z * sin,
+        this.bounceOffset.y,
+        this.bounceOffset.x * sin + this.bounceOffset.z * cos,
+      );
+    }
 
     // Wheels: spin with forward travel, steer with the front axle.
     this.wheelSpin += (this.speedAlongForward / this.spec.body.wheel) * dt;

@@ -86,6 +86,22 @@ export const PHYSICS = {
   // Below this speed the car is deemed parked and pushing hard into scenery is
   // ignored: without it, resting against a wall grinds the car to scrap.
   collisionRestSpeed: 4,
+  // Bounce. `restitution` is the fraction of the speed into a wall that comes
+  // back off it; the spring and damping are the body's recoil on top of that.
+  // The spring is what reads as a bounce rather than the car merely being
+  // stopped: the shell rocks back and settles, it is not the car travelling.
+  bounceRestitution: 0.3,
+  bounceSpring: 46,
+  bounceDamping: 9,
+  // How hard a hit has to be to move the body at all, and the speed at which
+  // the recoil is at full strength. Scrapes must not set it jiggling. The full
+  // speed is deliberately high so the recoil stays proportionate across the
+  // range: with a low ceiling every hit over walking pace looked the same.
+  bounceMinSpeed: 6,
+  bounceFullSpeed: 64,
+  // Recoil travel in metres at a full-strength hit. Reaching this now takes a
+  // near-full-speed impact, so the cap only ever catches the very worst crash.
+  bounceMaxOffset: 0.7,
 };
 
 export const POLICE = {
@@ -113,18 +129,21 @@ export function carFor(key) {
 export const CARS = [
   {
     key: 'bmw',
-    name: 'BMW M4',
+    name: 'BMW M235i',
     blurb: 'Balanced all-rounder. Quick to change direction.',
     // The all-rounder sits between the Rolls and the Porsche. It used to be
     // the slowest thing on the road, which made the car most players pick the
-    // one that felt worst to drive.
-    topSpeed: 74,
-    accel: 1.0,
+    // one that felt worst to drive. It is now well clear of both, so the quick
+    // car is the responsive one rather than the twitchy one; the Porsche keeps
+    // its edge in the corners and the Rolls in a shoving match.
+    topSpeed: 111,
+    accel: 1.35,
     grip: 1.0,
     handbrake: 0.85,
     durability: 1.0,
-    body: { length: 4.7, width: 2.0, height: 0.86, ride: 0.42, cabin: 0.34, wheel: 0.36 },
-    color: 0x2f6fd0,
+    body: { length: 4.7, width: 1.99, height: 0.9, ride: 0.42, cabin: 0.42, wheel: 0.36 },
+    // Snapper Rocks Blue, as in the reference car.
+    color: 0x0f7fb5,
     accent: 0x121821,
   },
   {

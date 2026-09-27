@@ -42,15 +42,26 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
     }
 
     const normal = new THREE.Vector3(nx, 0, nz);
-    const impactSpeed = Math.abs(vehicle.velocity.dot(normal));
-    // Kill the velocity going into the wall rather than reflecting it. A bounce
-    // here would fling the car back at speed and launch it off the kerb.
+    // `vn` is the speed still going into the surface, taken before the response.
+    // It is both what the bounce is measured from and what the shove below
+    // needs, so it is read once here.
     const vn = vehicle.velocity.dot(normal);
+    const impactSpeed = Math.abs(vn);
+    // Kill the velocity going into the wall rather than reflecting it, so a
+    // head-on stop does not fling the car back off the kerb. Only this closing
+    // component is removed; whatever speed the car had along the wall, and so
+    // any scrape, is left alone.
     if (vn < 0) vehicle.velocity.addScaledVector(normal, -vn);
-    vehicle.velocity.multiplyScalar(0.86);
+    vehicle.velocity.multiplyScalar(0.86 - PHYSICS.bounceRestitution);
     // Scraping a wall must not lift the car off the ground.
     vehicle.airborne = false;
     vehicle.velocity.y = Math.min(vehicle.velocity.y, 0);
+    // The hit rocks the body back off the wall. Recoil is for a car that
+    // arrives at the surface, not one already resting on it: once the car is
+    // stopped against the wall this closing speed is gone, so the body settles
+    // even while the throttle is still held down. Scraping along a wall barely
+    // registers at all, since almost none of the speed is going into it.
+    vehicle.addBounce(normal, impactSpeed);
 
     if (impactSpeed > 4) {
       if (c.movable) {
@@ -64,8 +75,17 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
         // travelling, is what makes a parked car look shunted.
         if (c.mesh && c.centre) {
           const alongX = nx !== 0;
-          const dir = alongX ? -nx : -nz;
-          const shift = (alongX ? overlapX : overlapZ) * 0.9;
+          // A head-on hit has no lateral component, so the sign above is zero
+          // and the car would be shoved straight down the axis the player is
+          // pushing into. Fall back to the way the player is travelling, which
+          // is the direction the shunt should follow.
+          const dir = alongX
+            ? (nx !== 0 ? -nx : Math.sign(vehicle.velocity.x))
+            : (nz !== 0 ? -nz : Math.sign(vehicle.velocity.z));
+          // A shunt is displacement, not a spin: cap it so a glancing blow
+          // nudges the car instead of snapping it round a right angle.
+          const SHUNT_MAX = 0.8;
+          const shift = Math.min((alongX ? overlapX : overlapZ) * 0.9, SHUNT_MAX);
           const dirX = alongX ? dir : 0;
           const dirZ = alongX ? 0 : dir;
           c.minX += dirX * shift; c.maxX += dirX * shift;
@@ -75,7 +95,7 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
           c.mesh.position.set(c.centre.x, c.mesh.position.y, c.centre.z);
           // Keep the nose facing the way it was shoved rather than snapping to
           // an axis, so the car visibly swings round.
-          c.mesh.rotation.y = Math.atan2(dirX, dirZ);
+          c.mesh.rotation.y = Math.atan2(dirX, dirZ) * 0.15 + c.mesh.rotation.y * 0.85;
         }
       }
       if (!slowestHit || impactSpeed > slowestHit.speed) {
@@ -123,10 +143,16 @@ export function resolveCarCollision(a, b, onImpact) {
   const alongNormal = relative.dot(normal);
   if (alongNormal <= 0) return false;
 
-  const restitution = 0.35;
+  const restitution = PHYSICS.bounceRestitution + 0.05;
   const impulse = alongNormal * (1 + restitution) / (1 / massA + 1 / massB);
   a.velocity.addScaledVector(normal, -impulse / massA);
   b.velocity.addScaledVector(normal, impulse / massB);
+
+  // Both cars rock back off the contact, the same as they do off a wall.
+  if (alongNormal > PHYSICS.bounceMinSpeed) {
+    a.addBounce(normal, alongNormal);
+    b.addBounce(normal, alongNormal);
+  }
 
   const force = Math.abs(alongNormal);
   if (force > PHYSICS.crashSpeedThreshold) {
@@ -156,9 +182,17 @@ export function resolveWaterAndBounds(vehicle, onImpact) {
   vehicle._edgeHitCooldown = Math.max(0, (vehicle._edgeHitCooldown ?? 0) - 1);
 
   if (clamped) {
+    const intoEdge = vehicle.speed;
     vehicle.velocity.multiplyScalar(0.25);
+    if (intoEdge > PHYSICS.bounceMinSpeed) {
+      // The field edge is a wall like any other, so it bounces like one. Push
+      // the body away from whichever boundary was hit.
+      const axis = Math.abs(vehicle.position.x) >= limit - 0.01 ? 'x' : 'z';
+      const sign = vehicle.position[axis] > 0 ? -1 : 1;
+      vehicle.addBounce(new THREE.Vector3(axis === 'x' ? sign : 0, 0, axis === 'z' ? sign : 0), intoEdge);
+    }
     if (vehicle._edgeHitCooldown === 0) {
-      onImpact?.(0.02, vehicle.speed);
+      onImpact?.(0.02, intoEdge);
       vehicle._edgeHitCooldown = 45;
     }
     return true;
