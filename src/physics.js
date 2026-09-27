@@ -63,15 +63,20 @@ export function resolveWorldCollisions(vehicle, colliders, onImpact) {
     }
   }
 
-  // Only genuine impacts cost damage. Resting against scenery reverses the car
-  // out at a low speed every frame, and that must not grind it to scrap.
+  // Only a genuine impact costs damage. Holding the throttle into a wall keeps
+  // pushing the car against it at a steady speed every frame, which would
+  // otherwise re-trigger "impact" damage forever; a short cooldown lets the
+  // first hit register and then holds off until the car has backed away.
+  vehicle._wallHitCooldown = Math.max(0, (vehicle._wallHitCooldown ?? 0) - 1);
   if (
     slowestHit &&
     slowestHit.speed > PHYSICS.crashSpeedThreshold &&
-    slowestHit.speed > PHYSICS.collisionRestSpeed
+    slowestHit.speed > PHYSICS.collisionRestSpeed &&
+    vehicle._wallHitCooldown === 0
   ) {
     const damage = (slowestHit.speed * PHYSICS.damagePerImpact) / Math.max(0.4, vehicle.spec.durability);
     onImpact?.(damage, slowestHit.speed);
+    vehicle._wallHitCooldown = 45;
   }
 }
 
@@ -123,16 +128,28 @@ export function resolveWaterAndBounds(vehicle, onImpact) {
       clamped = true;
     }
   }
+  // A cooldown, not a per-frame latch: right at the edge the car can toggle
+  // in and out of contact from one frame to the next as the clamp nudges it
+  // back and the throttle pushes it forward again, which would otherwise let
+  // an "only on the first frame" check keep re-arming and firing every frame.
+  vehicle._edgeHitCooldown = Math.max(0, (vehicle._edgeHitCooldown ?? 0) - 1);
+
   if (clamped) {
     vehicle.velocity.multiplyScalar(0.25);
-    onImpact?.(0.02, vehicle.speed);
+    if (vehicle._edgeHitCooldown === 0) {
+      onImpact?.(0.02, vehicle.speed);
+      vehicle._edgeHitCooldown = 45;
+    }
     return true;
   }
 
   if (isWater(vehicle.position.x, vehicle.position.z)) {
     vehicle.velocity.multiplyScalar(0.9);
     vehicle.position.z -= 0.6;
-    onImpact?.(0.004, 2);
+    if (vehicle._edgeHitCooldown === 0) {
+      onImpact?.(0.004, 2);
+      vehicle._edgeHitCooldown = 45;
+    }
     return true;
   }
   return false;

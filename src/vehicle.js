@@ -70,6 +70,8 @@ export class Vehicle {
     this.climbRate = 0;
     this.wasOnRamp = false;
     this.lastRamp = null;
+    this._wallHitCooldown = 0;
+    this._edgeHitCooldown = 0;
   }
 
   applyDamage(amount) {
@@ -106,10 +108,17 @@ export class Vehicle {
     const maxSteer = THREE.MathUtils.lerp(PHYSICS.maxSteerLow, PHYSICS.maxSteerHigh, speedRatio);
     const targetYaw = steerInput * maxSteer * Math.sign(forwardSpeed || 1);
     this.angularVelocity += (targetYaw - this.angularVelocity) * Math.min(1, PHYSICS.steerSpeed * dt);
+    // `angularVelocity` is a yaw rate in rad/s, so turning the car into heading
+    // must scale by dt like any other integration step; without it the turn
+    // rate at full lock came out well over one full rotation per second,
+    // which read as the car spinning on the spot instead of turning.
+    // A car barely moving still needs some steering bite to pull away from a
+    // stop, so the speed factor only softens the rate rather than zeroing it.
+    const turnAuthority = THREE.MathUtils.clamp(0.55 + Math.abs(forwardSpeed) / 10, 0.55, 1);
     if (!this.airborne) {
-      this.heading += this.angularVelocity * Math.max(0.35, Math.min(1.6, Math.abs(forwardSpeed) / 14));
+      this.heading += this.angularVelocity * dt * turnAuthority;
     } else {
-      this.heading += this.angularVelocity * 0.35;
+      this.heading += this.angularVelocity * dt * 0.6;
     }
 
     // Damage saps top speed and throttle response, so a wrecked car really is

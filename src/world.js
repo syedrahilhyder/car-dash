@@ -59,12 +59,19 @@ function addLights(scene) {
   const sun = new THREE.DirectionalLight(0xfff2dd, 2.1);
   sun.position.set(120, 180, 90);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -220;
   sun.shadow.camera.right = 220;
   sun.shadow.camera.top = 220;
   sun.shadow.camera.bottom = -220;
+  sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 600;
+  // A shadow map this coarse over a 440-unit frustum leaves each texel
+  // covering real ground area, which reads as flickering speckle on flat
+  // surfaces as the camera moves; bias pushes the shadow test off the
+  // surface so it stops fighting with itself frame to frame.
+  sun.shadow.bias = -0.0015;
+  sun.shadow.normalBias = 0.4;
   scene.add(sun);
 }
 

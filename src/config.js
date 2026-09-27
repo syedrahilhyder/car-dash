@@ -14,8 +14,9 @@ export const PHYSICS = {
   gravity: 38,
   brakeForce: 34,
   reverseForce: 12,
-  maxSteerLow: 0.62,
-  maxSteerHigh: 0.16,
+  // Max yaw rate in rad/s at low speed vs. near top speed.
+  maxSteerLow: 2.6,
+  maxSteerHigh: 0.9,
   steerSpeed: 3.4,
   // Lateral grip. Lower means the car slides more in corners.
   grip: 6.2,
