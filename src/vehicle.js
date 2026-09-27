@@ -136,9 +136,15 @@ export class Vehicle {
       if (forwardSpeed < -0.5) {
         accel = -PHYSICS.brakeForce * power;
       } else {
-        // Power falls away as the car approaches its top speed.
-        const headroom = 1 - forwardSpeed / topSpeed;
-        accel = PHYSICS.brakeForce * power * Math.max(0, headroom);
+        // Pull hard through most of the range, then taper over the last
+        // stretch. A pure `1 - speed/topSpeed` curve approaches the cap
+        // exponentially, so the last slice of speed took many seconds of held
+        // throttle and the car never visibly settled at a top speed. Keeping
+        // full power until close to the limit and then braking to zero over a
+        // narrow band reaches the cap in a bounded time and pins there.
+        const ratio = forwardSpeed / topSpeed;
+        const taper = THREE.MathUtils.clamp((1 - ratio) / PHYSICS.powerTaper, 0, 1);
+        accel = PHYSICS.brakeForce * power * taper;
         // A little extra push off the line keeps launches brisk.
         if (forwardSpeed < PHYSICS.launchSpeed) accel *= 1.5;
       }

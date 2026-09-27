@@ -21,12 +21,14 @@ export const PHYSICS = {
   // Lateral grip. Lower means the car slides more in corners.
   grip: 6.2,
   driftGrip: 1.9,
-  // Longitudinal shape. Speed is capped at the car's own topSpeed, so the power
-  // curve only decides how quickly that cap is reached: `accelRamp` is the
-  // speed at which a car is at roughly 63% of its rate of climb.
-  accelRamp: 18,
+  // Longitudinal shape. Speed is capped at the car's own topSpeed, so the
+  // power curve only decides how quickly that cap is reached.
   // Below this speed the throttle bites fully, so cars pull away cleanly.
   launchSpeed: 4,
+  // Fraction of the top speed over which full power tapers to zero. Keeping
+  // this small holds power through the whole range so the cap is a firm,
+  // reachable ceiling rather than an asymptotic crawl.
+  powerTaper: 0.18,
   // Above this vertical speed the car is treated as airborne and steering
   // authority collapses, which is what makes ramp jumps feel committed.
   airSteerAuthority: 0.18,
