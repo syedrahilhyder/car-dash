@@ -49,10 +49,43 @@
         <h1>Car Dash</h1>
         <p class="tagline">Pick a car. Outrun the police. Find the ramps.</p>
         <div id="carGrid" class="car-grid"></div>
+
+        <!-- Play mode. Solo needs no network; the other two link two devices so
+             each drives its own car and sees the other's. -->
+        <div class="mode-row" role="radiogroup" aria-label="Play mode">
+          <button id="modeSolo" class="mode-btn active" type="button" role="radio" aria-checked="true">Solo</button>
+          <button id="modeHost" class="mode-btn" type="button" role="radio" aria-checked="false">Host a game</button>
+          <button id="modeJoin" class="mode-btn" type="button" role="radio" aria-checked="false">Join a game</button>
+        </div>
+
+        <!-- Host: claim a room code and read it out to the other player -->
+        <div id="hostPanel" class="net-panel hidden">
+          <h3>Your room code</h3>
+          <p class="code-row">
+            <span id="hostCode" class="room-code" aria-label="Room code">···</span>
+            <button id="hostCopy" class="ghost" type="button">Copy</button>
+          </p>
+          <p class="net-status">Read this out, or send it however you like.</p>
+          <p id="hostStatus" class="net-status">Claiming a code…</p>
+        </div>
+
+        <!-- Join: type the code the host is showing -->
+        <div id="joinPanel" class="net-panel hidden">
+          <h3>Enter the room code</h3>
+          <p class="code-row">
+            <input id="joinCode" class="room-input" type="text" inputmode="numeric" autocomplete="off"
+              maxlength="3" placeholder="000" aria-label="Room code" />
+            <button id="joinMake" class="ghost" type="button">Join</button>
+          </p>
+          <p id="joinStatus" class="net-status">Ask the other player for their three-digit code.</p>
+        </div>
+
         <button id="startBtn" class="primary" type="button">Start driving</button>
         <p class="controls-hint">
           Mobile: steering pad on the left, gas and brake on the right.
-          Desktop: arrow keys or WASD, Space for handbrake, C for camera, R to respawn.
+          Desktop: arrow keys or WASD, Space for handbrake, C for camera, R to respawn.<br />
+          Two devices: one player hosts and shares the three-digit room code, the
+          other joins with it. Each drives their own car in the same city.
         </p>
       </div>
     </section>
@@ -85,6 +118,13 @@
           </div>
           <div class="heat"><div id="heatBar" class="heat-flight"></div></div>
         </div>
+      </div>
+
+      <!-- The other player, shown only when a two-device game is linked. -->
+      <div id="peerHud" class="peer-hud hidden">
+        <span id="peerName" class="peer-name">Other player</span>
+        <span id="peerStatus" class="peer-dot" data-state="waiting">waiting</span>
+        <strong id="peerSpeed">0</strong><small>km/h</small>
       </div>
 
       <div class="hud-top-right">

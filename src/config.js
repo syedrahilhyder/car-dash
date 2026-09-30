@@ -159,6 +159,11 @@ export const POLICE = {
   cruisersPerWantedLevel: 3,
   // The floor a chase starts with, so even one star sends someone.
   minCruisersPerChase: 2,
+  // How much nearer the other player has to be before a cruiser switches target.
+  // A cruiser committed to one player does not swap until the other is this
+  // fraction of the distance away, which stops two packs swapping sides whenever
+  // the cars run level.
+  retargetMargin: 0.6,
 };
 
 export const RAMP_LAUNCH = 15.5;

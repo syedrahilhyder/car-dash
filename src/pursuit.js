@@ -21,7 +21,10 @@ export class Pursuit {
     return this.cruisers.filter((c) => c.active);
   }
 
-  update(dt, player) {
+  // `others` is the rest of the field: with a second car, the cruisers split
+  // between the players rather than all trailing whichever one is passed first.
+  update(dt, player, others = []) {
+    this.targets = [player, ...others];
     const playerSpeed = player.speed;
     // Remembered for spawn(), which runs after this and needs to know how fast
     // the player is going to pick a drop distance.
@@ -76,8 +79,9 @@ export class Pursuit {
 
     this.sirenPhase += dt * 9;
 
+    this._assignTargets();
     for (const cruiser of this.cruisers) {
-      cruiser.update(dt, player, this);
+      cruiser.update(dt, this.targetFor(cruiser), this);
     }
 
     // Retire cruisers that have been smashed up beyond use.
@@ -87,6 +91,31 @@ export class Pursuit {
         this.heat = Math.max(0, this.heat - 12);
       }
     }
+  }
+
+  // Splits the fleet between the players. With one car every cruiser hunts it.
+  // With two, a cruiser stays on the player it was assigned to until the other
+  // is meaningfully nearer, so the packs do not swap sides every time the two
+  // cars draw level. See POLICE.retargetMargin.
+  _assignTargets() {
+    const targets = this.targets || [];
+    if (targets.length < 2) {
+      for (const c of this.cruisers) c._pursue = 0;
+      return;
+    }
+    for (const c of this.cruisers) {
+      if (c._pursue == null) c._pursue = this.cruisers.indexOf(c) % 2;
+      const mine = targets[c._pursue] || targets[0];
+      const other = targets[1 - c._pursue] || targets[0];
+      const toMine = c.vehicle.position.distanceTo(mine.position);
+      const toOther = c.vehicle.position.distanceTo(other.position);
+      if (toOther < toMine * POLICE.retargetMargin) c._pursue = 1 - c._pursue;
+    }
+  }
+
+  targetFor(cruiser) {
+    const targets = this.targets || [];
+    return targets[cruiser._pursue] || targets[0];
   }
 
   nearestActiveDistance(player) {
@@ -147,6 +176,16 @@ export class Pursuit {
     }
 
     const cruiser = new PoliceVehicle(this.scene, candidate.x, candidate.z, heading);
+    cruiser.startSiren(this.scene);
+    this.cruisers.push(cruiser);
+    return cruiser;
+  }
+
+  // Guest side: a cruiser whose position comes from the host's snapshot rather
+  // than from the pursuit controller. It is built here so both devices construct
+  // cruisers the same way, then the game marks it `remote` and moves it.
+  spawnRemoteCruiser(x, z, heading) {
+    const cruiser = new PoliceVehicle(this.scene, x, z, heading);
     cruiser.startSiren(this.scene);
     this.cruisers.push(cruiser);
     return cruiser;

@@ -151,6 +151,126 @@ button {
   color: var(--gold-400);
 }
 
+/* ------------------------------------------------------------ play mode */
+
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.mode-btn {
+  padding: 11px 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+}
+
+.mode-btn.active {
+  color: var(--navy-900);
+  background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+  border-color: var(--gold-400);
+}
+
+.net-panel {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: rgba(10, 16, 32, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+}
+
+.net-panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--gold-400);
+}
+
+.net-panel h3:not(:first-child) {
+  margin-top: 14px;
+}
+
+.code-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.room-code {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  color: var(--gold-400);
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+
+.room-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  text-align: center;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+
+.room-input::placeholder {
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.room-input:focus-visible {
+  outline: 2px solid var(--gold-400);
+  outline-offset: 2px;
+}
+
+.ghost {
+  align-self: stretch;
+  padding: 0 14px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+}
+
+.ghost:active {
+  background: rgba(242, 193, 78, 0.2);
+}
+
+.net-status {
+  margin: 10px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .primary {
   margin-top: 22px;
   width: 100%;
@@ -351,6 +471,62 @@ button {
   background: linear-gradient(90deg, transparent, var(--red-500), transparent);
   opacity: 0.25;
   transition: opacity 0.3s ease;
+}
+
+/* The other player's car, shown only while a two-device game is linked. */
+.peer-hud {
+  position: absolute;
+  top: calc(116px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: rgba(10, 16, 32, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.peer-name {
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  color: var(--gold-400);
+}
+
+.peer-hud strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.peer-hud small {
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.peer-hud strong[data-damage='mid'] {
+  color: #e8a13a;
+}
+
+.peer-hud strong[data-damage='high'] {
+  color: #e0563f;
+}
+
+.peer-dot {
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+}
+
+.peer-dot[data-state='connected'] {
+  color: var(--green-500);
+}
+
+.peer-dot[data-state='failed'],
+.peer-dot[data-state='closed'] {
+  color: var(--red-500);
 }
 
 /* Status + toast */

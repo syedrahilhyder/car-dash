@@ -4,8 +4,9 @@ An open-world driving game that runs in the browser and installs as an app. Pick
 a BMW M4, a Rolls-Royce or a Porsche 911, then try to shake the police through a
 town with ramps, a garage, a hospital, a gas station and a beach.
 
-Built with Vite and three.js. No backend, no accounts, no network calls at
-runtime.
+Built with Vite and three.js. No backend and no accounts. Solo play makes no
+network calls at all; playing with a second device connects the two browsers
+directly over WebRTC (see Two devices below).
 
 ## Play
 
@@ -13,6 +14,32 @@ runtime.
   handbrake.
 - Keyboard: `W`/`Up` gas, `S`/`Down` brake and reverse, `A`/`D` or left/right to
   steer, `Space` handbrake, `C` cycles the camera, `R` respawns.
+
+## Two devices
+
+Two players can drive in the same city from two devices. The connection is a
+direct peer-to-peer WebRTC data channel, so there is no game server to run: the
+page is still static, and GitHub Pages is enough to host it.
+
+1. Player one picks **Host a game** and is shown a three-digit room code.
+2. Player two picks **Join a game** and types that code.
+3. Both devices say **linked**, and either player can start.
+
+Each device simulates its own car, so your own controls never wait on the
+network; the other player's car is drawn from a 20 Hz state stream. The host
+also owns the police: it simulates the cruisers and streams them, so both
+players are chased by the same cars in the same places. Each device applies
+damage to its own car, so a cruiser that hits you hurts you on your screen.
+
+WebRTC still needs a signalling step to introduce the two browsers, and a static
+host has no server to do it. That one step runs over PeerJS's public broker: the
+host claims its room code there, the guest dials it, and the code *is* the
+address. Once the channel is open the broker is out of the path and the two
+browsers talk directly. Solo play never touches it.
+
+Two caveats worth knowing: the broker is a third-party service, so a code can
+only be claimed while it is reachable, and no TURN relay is configured, so two
+devices behind strict symmetric NAT may fail to connect.
 
 ## What is in the world
 
@@ -77,6 +104,7 @@ offline once it has been loaded.
 ```
 src/
 ├─ main.js            entry point; wires the game to the DOM and registers the SW
+├─ net.js             WebRTC peer link: PeerJS signalling, state and cruiser streams
 ├─ game.js            game loop, cameras, POI triggers, collision orchestration
 ├─ config.js          all tuning: world size, physics, police, cars, POI placement
 ├─ vehicle.js         arcade car controller, terrain contact, damage and dents
