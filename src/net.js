@@ -31,6 +31,11 @@ const CODE_ATTEMPTS = 12;
 const SEND_HZ = 20;
 const SEND_INTERVAL = 1000 / SEND_HZ;
 
+// A dial that neither opens nor errors would leave the guest reading "looking
+// for that game" forever. A NAT that blocks the handshake is exactly that case,
+// so the attempt gets a deadline and is then reported as a failure.
+const JOIN_TIMEOUT_MS = 15000;
+
 function randomCode() {
   return String(CODE_MIN + Math.floor(Math.random() * (CODE_MAX - CODE_MIN + 1)));
 }
@@ -116,7 +121,19 @@ export class NetSession {
       peer.on('open', () => {
         claimed = true;
       });
-      peer.on('disconnected', () => this.onStatus('disconnected'));
+      // The broker socket can drop while the game is idle in the lobby. Without
+      // this the host would keep showing a code that no guest can dial, so it
+      // reconnects and says so; the room code is unchanged by a reconnect.
+      peer.on('disconnected', () => {
+        this.onStatus('disconnected');
+        if (this.connected) return;
+        try {
+          peer.reconnect();
+        } catch {
+          // A peer already destroyed cannot be reconnected; the status above is
+          // the whole report in that case.
+        }
+      });
     });
   }
 
@@ -131,24 +148,38 @@ export class NetSession {
       const peer = new Peer({ debug: 0 });
       this.peer = peer;
       let settled = false;
+      // Cleared once the channel opens or the attempt fails, so a slow success
+      // is not reported as a timeout after the fact.
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Could not reach that game. The two devices may be on networks that block a direct connection.'));
+      }, JOIN_TIMEOUT_MS);
 
-      peer.on('open', () => {
-        this.onStatus('connecting');
-        const conn = peer.connect(CODE_PREFIX + this.code, { reliable: false });
-        this._attach(conn, resolve);
-      });
-      peer.on('error', (error) => {
+      const fail = (error) => {
         if (settled) {
-          this.onStatus(error.type || 'error');
+          this.onStatus(error?.type || 'error');
           return;
         }
         settled = true;
+        clearTimeout(timer);
         reject(
           error?.type === 'peer-unavailable'
             ? new Error('No game found on that code. Check the other device is hosting.')
             : error,
         );
+      };
+
+      peer.on('open', () => {
+        this.onStatus('connecting');
+        const conn = peer.connect(CODE_PREFIX + this.code, { reliable: false });
+        this._attach(conn, (code) => {
+          settled = true;
+          clearTimeout(timer);
+          resolve(code);
+        });
       });
+      peer.on('error', fail);
     });
   }
 
